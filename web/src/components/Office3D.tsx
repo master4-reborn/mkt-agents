@@ -36,7 +36,7 @@ const C = {
 };
 
 const META: Record<Agent, { name: string; fur: string; roof: string; tools: string; job: string; demoTask: string }> = {
-  lead: { name: "Điều phối", fur: "#fff7f9", roof: C.roofs[0], tools: "Giao việc, đọc, ghi", job: "Nhận lệnh của bạn, chia việc, giữ cổng duyệt, báo cáo ba dòng", demoTask: "" },
+  lead: { name: "Điều phối", fur: "#fff1e6", roof: C.roofs[0], tools: "Giao việc, đọc, ghi", job: "Nhận lệnh của bạn, chia việc, giữ cổng duyệt, báo cáo ba dòng", demoTask: "" },
   research: { name: "Nghiên cứu", fur: "#cdb8ff", roof: "#a98bff", tools: "Tìm web, đọc web, bash", job: "Quét đối thủ và bình luận, bảng nỗi đau, 5 chủ đề", demoTask: "quét đối thủ và bình luận tuần này" },
   writer: { name: "Viết bài", fur: "#ff9ec4", roof: "#ff6fa3", tools: "Chỉ đọc, ghi file", job: "3 đến 5 bài nháp mỗi tuần, đúng giọng thương hiệu", demoTask: "viết 4 bài nháp từ 5 chủ đề" },
   qa: { name: "QA-QC", fur: "#ffd0b0", roof: "#ffb06b", tools: "Chỉ đọc, ghi file", job: "Soát số liệu, từ cấm, giọng, độ dài; đặt trạng thái", demoTask: "soát 4 bài nháp, đặt trạng thái" },
@@ -77,7 +77,7 @@ const Mat = ({ color, flat = true }: { color: string; flat?: boolean }) => <mesh
 
 function Laptop({ open }: { open: boolean }) {
   return (
-    <group position={[0, 0, 1.7]} scale={2.2}>
+    <group position={[0, 0, 0.75]} scale={1.1}>
       <mesh position={[0, 0.03, 0]}>
         <boxGeometry args={[0.42, 0.04, 0.3]} />
         <Mat color="#fff" />
@@ -287,7 +287,7 @@ function demoAt(t: number): Demo {
 
 const STOP = Object.fromEntries(ORDER.map((a) => [a, onRing(a, STOP_R)])) as Record<Exclude<Agent, "lead">, [number, number, number]>;
 const LEAD_HOME: [number, number, number] = [0, 0, 3.6];
-const CAT_SCALE = 0.7;
+const CAT_SCALE = 1.8; // world height of a cat
 const PROPS: Record<Exclude<Agent, "lead">, string> = { research: "cupcake", writer: "ice-cream", qa: "donut-sprinkles", metrics: "cake-birthday" };
 
 function Train() {
@@ -315,7 +315,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const leadRef = useRef<THREE.Group>(null);
   const demoStart = useRef(0);
-  const leadPos = useRef<[number, number, number]>([LEAD_HOME[0], 2.0, LEAD_HOME[2]]);
+  const leadPos = useRef<[number, number, number]>([LEAD_HOME[0], 2.1, LEAD_HOME[2]]);
 
   useEffect(() => {
     controls.current?.reset();
@@ -331,7 +331,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
         leadRef.current.position.set(...LEAD_HOME);
         leadRef.current.rotation.y = 0;
       }
-      leadPos.current = [LEAD_HOME[0], 2.0, LEAD_HOME[2]];
+      leadPos.current = [LEAD_HOME[0], 2.1, LEAD_HOME[2]];
       return;
     }
     if (!demoStart.current) demoStart.current = clock.getElapsedTime();
@@ -340,7 +340,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
       leadRef.current.position.set(...d.leadPos);
       leadRef.current.rotation.y = d.leadRot;
     }
-    leadPos.current = [d.leadPos[0], 2.0, d.leadPos[2]];
+    leadPos.current = [d.leadPos[0], 2.1, d.leadPos[2]];
     if (!demoView || demoView.leadMode !== d.leadMode || demoView.leadLine !== d.leadLine || ORDER.some((a) => demoView.states[a] !== d.states[a])) setDemoView(d);
   });
 
@@ -362,9 +362,9 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
         <group onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setSel("lead"); }}>
           <Castle scale={1.3} />
           <group ref={leadRef} position={LEAD_HOME}>
-            <Cat tint={META.lead.fur} anim={leadMode} faceCamera={leadMode !== "walk"} scale={CAT_SCALE}>
-              <mesh position={[0, 2.5, -0.1]}>
-                <cylinderGeometry args={[0.42, 0.5, 0.36, 5]} />
+            <Cat fur={META.lead.fur} anim={leadMode} faceCamera={leadMode !== "walk"} scale={CAT_SCALE}>
+              <mesh position={[0, 1.0, 0.5]}>
+                <cylinderGeometry args={[0.12, 0.15, 0.13, 5]} />
                 <meshStandardMaterial color={C.gold} roughness={0.5} metalness={0.3} flatShading />
               </mesh>
             </Cat>
@@ -385,7 +385,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
               <Piece kit="holiday" name="candy-cane-red" position={cane} rotation={[0, -a + 0.4, 0]} scale={2.4} />
               <Piece kit="town" name="lantern" position={lantern} scale={0.9} />
               <group position={STOP[agent]}>
-                <Cat tint={META[agent].fur} anim={state === "working" ? "work" : "idle"} faceCamera scale={CAT_SCALE}>
+                <Cat fur={META[agent].fur} anim={state === "working" ? "work" : "idle"} faceCamera scale={CAT_SCALE}>
                   <Laptop open={state !== "waiting"} />
                 </Cat>
                 {sel === agent && (
@@ -419,10 +419,10 @@ export default function Office3D({ team, waiting, week }: { team: MapEmployee[];
   const nodes = useMemo<Nodes>(() => new Map(), []);
   const anchors = useMemo<Anchor[]>(
     () => [
-      { id: "b:lead", pos: [LEAD_HOME[0], 2.0, LEAD_HOME[2]] },
+      { id: "b:lead", pos: [LEAD_HOME[0], 2.1, LEAD_HOME[2]] },
       { id: "n:lead", pos: [0, 7.2, 0] },
       ...ORDER.flatMap((a): Anchor[] => [
-        { id: `b:${a}`, pos: [STOP[a][0], 2.0, STOP[a][2]] },
+        { id: `b:${a}`, pos: [STOP[a][0], 2.1, STOP[a][2]] },
         { id: `n:${a}`, pos: [STOP[a][0], -0.05, STOP[a][2]] },
       ]),
     ],

@@ -40,27 +40,43 @@ export function Piece({ kit, name, color, recolor, ...props }: GroupProps & { ki
 
 export type CatAnim = "idle" | "walk" | "work";
 const camTmp = new THREE.Vector3();
+// Which way the cat model faces in its own file; the component turns that toward +z.
+const CAT_FORWARD_ROT = -Math.PI / 2;
 
-/** "Marsey" cat (CC-BY, poly.pizza). `tint` multiplies the texture; `faceCamera` keeps it turned toward the viewer. Children render in front of the cat. */
-export function Cat({ tint, anim, faceCamera, children, ...props }: GroupProps & { tint: string; anim: CatAnim; faceCamera?: boolean; children?: React.ReactNode }) {
+/** Sitting cat (CC-BY, poly.pizza/m/ovFy5UldDq). Normalised to 1 unit tall with paws on y=0, facing +z; `fur` recolours body/spots/ears. */
+export function Cat({ fur, anim, faceCamera, children, ...props }: GroupProps & { fur: string; anim: CatAnim; faceCamera?: boolean; children?: React.ReactNode }) {
   const { scene } = useGLTF(M("cats", "cat"));
   const obj = useMemo(() => {
     const o = scene.clone(true);
+    const base = new THREE.Color(fur);
+    const spot = base.clone().lerp(new THREE.Color("#b8457f"), 0.35);
+    const palette: Record<string, THREE.Color> = { body: base, spot, white: new THREE.Color("#fff8fb"), ear: new THREE.Color("#ff9fc2") };
     o.traverse((n) => {
       const mesh = n as THREE.Mesh;
       if (!mesh.isMesh) return;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      const tinted = mats.map((m) => {
+      const swapped = mats.map((m) => {
+        const c = palette[m.name];
+        if (!c) return m;
         const nm = (m as THREE.MeshStandardMaterial).clone();
-        nm.color = new THREE.Color(tint);
-        nm.roughness = 0.9;
+        nm.color = c;
+        nm.roughness = 0.95;
         nm.metalness = 0;
         return nm;
       });
-      mesh.material = tinted.length === 1 ? tinted[0] : tinted;
+      mesh.material = swapped.length === 1 ? swapped[0] : swapped;
     });
-    return o;
-  }, [scene, tint]);
+    o.rotation.y = CAT_FORWARD_ROT;
+    o.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(o);
+    const size = box.getSize(new THREE.Vector3());
+    const wrap = new THREE.Group();
+    const k = 1 / size.y;
+    o.position.set(-(box.min.x + box.max.x) / 2, -box.min.y, -(box.min.z + box.max.z) / 2);
+    wrap.add(o);
+    wrap.scale.setScalar(k);
+    return wrap;
+  }, [scene, fur]);
   const spin = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   useFrame(({ camera, clock }) => {
@@ -75,14 +91,14 @@ export function Cat({ tint, anim, faceCamera, children, ...props }: GroupProps &
     const b = body.current;
     if (!b) return;
     if (anim === "walk") {
-      b.position.y = Math.abs(Math.sin(t * 10)) * 0.14;
+      b.position.y = Math.abs(Math.sin(t * 10)) * 0.1;
       b.rotation.z = Math.sin(t * 10) * 0.08;
       b.rotation.x = 0;
       b.scale.set(1, 1, 1);
     } else if (anim === "work") {
       b.position.y = 0;
       b.rotation.z = 0;
-      b.rotation.x = 0.1 + Math.sin(t * 9) * 0.06;
+      b.rotation.x = 0.08 + Math.sin(t * 9) * 0.05;
       b.scale.set(1, 1, 1);
     } else {
       b.position.y = 0;
@@ -91,15 +107,12 @@ export function Cat({ tint, anim, faceCamera, children, ...props }: GroupProps &
       b.scale.set(1, 1 + Math.sin(t * 2) * 0.02, 1);
     }
   });
-  // model spans y −1.31…1.01 and faces +z; lift so the paws sit on y=0
   return (
     <group {...props}>
       <group ref={spin}>
         {children}
         <group ref={body}>
-          <group position={[0, 1.31, 0]}>
-            <primitive object={obj} />
-          </group>
+          <primitive object={obj} />
         </group>
       </group>
     </group>
