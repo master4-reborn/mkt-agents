@@ -36,7 +36,7 @@ scripts/run-week.sh "tuần này tập trung vào matcha"   # Monday
 scripts/say.sh "approve content/drafts/2026-11-02-matcha-sang.md"
 ```
 
-Outputs land in `/mnt/session/outputs/<week>/` inside the session; read them in the Console session view (Resources tab) or via `ant beta:files list`. Phase 2 replaces this with a web page.
+Outputs land in `/mnt/session/outputs/` inside the session and show up on the office page (`web/`). `scripts/show.sh content/drafts` prints them in the terminal instead.
 
 ## Decisions
 
@@ -46,8 +46,13 @@ Outputs land in `/mnt/session/outputs/<week>/` inside the session; read them in 
 - **Networking:** `unrestricted` because research needs the open web. Tighten to `limited` + `allowed_hosts` once the competitor list is stable.
 - **Language:** prompts in English with the Vietnamese terms the creator uses; the team writes content in Vietnamese per BRAND.md.
 
+## Phase 2: the office page
+
+`web/` is a Next.js app: dashboard, drafts with Approve / Reject, research, reports, brand, chat. See `web/README.md` to run it locally (`cd web && pnpm dev`) and to deploy it on Vercel with Supabase.
+
+The lead copies every file it creates or changes to `/mnt/session/outputs/`; the page pulls those through the Files API, so nothing in the sandbox is ever reached directly.
+
 ## Next phases
 
-2. Web app (Next.js) that shows drafts, research and reports from the session and has an Approve / Reject button that sends the message for you.
 3. Gmail, Notion and Drive through MCP, credentials in a vault, approval gate on every sending tool; weekly schedule as a deployment.
 4. Design, Publish and Reply employees.
