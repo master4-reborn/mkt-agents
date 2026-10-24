@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { useGLTF, useAnimations } from "@react-three/drei";
-import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
+import { useGLTF } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import type { ThreeElements } from "@react-three/fiber";
 
 type GroupProps = Omit<ThreeElements["group"], "ref" | "children">;
@@ -38,47 +38,69 @@ export function Piece({ kit, name, color, recolor, ...props }: GroupProps & { ki
   );
 }
 
-export type CatAnim = "Idle" | "Walk" | "Dance" | "Yes" | "No" | "Jump";
+export type CatAnim = "idle" | "walk" | "work";
+const camTmp = new THREE.Vector3();
 
-/** The chubby Quaternius cat (CC0), recoloured per agent and driven by one of its animations. */
-export function Cat({ fur, stripes, anim, ...props }: GroupProps & { fur: string; stripes: string; anim: CatAnim }) {
-  const { scene, animations } = useGLTF(M("cats", "cat"));
+/** "Marsey" cat (CC-BY, poly.pizza). `tint` multiplies the texture; `faceCamera` keeps it turned toward the viewer. Children render in front of the cat. */
+export function Cat({ tint, anim, faceCamera, children, ...props }: GroupProps & { tint: string; anim: CatAnim; faceCamera?: boolean; children?: React.ReactNode }) {
+  const { scene } = useGLTF(M("cats", "cat"));
   const obj = useMemo(() => {
-    const o = SkeletonUtils.clone(scene);
+    const o = scene.clone(true);
     o.traverse((n) => {
       const mesh = n as THREE.Mesh;
       if (!mesh.isMesh) return;
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      const swap = (m: THREE.Material) => {
-        const c = m.name === "Cat_Main" ? fur : m.name === "Cat_Secondary" ? stripes : m.name === "Ears" ? "#ff7fb0" : m.name === "Eye_White" ? "#ffffff" : null;
-        if (!c) return m;
+      const tinted = mats.map((m) => {
         const nm = (m as THREE.MeshStandardMaterial).clone();
-        nm.color = new THREE.Color(c);
+        nm.color = new THREE.Color(tint);
         nm.roughness = 0.9;
         nm.metalness = 0;
         return nm;
-      };
-      mesh.material = mats.length === 1 ? swap(mats[0]) : mats.map(swap);
-      mesh.castShadow = true;
+      });
+      mesh.material = tinted.length === 1 ? tinted[0] : tinted;
     });
     return o;
-  }, [scene, fur, stripes]);
-  const root = useRef<THREE.Group>(null);
-  const { actions } = useAnimations(animations, root);
-  const current = useRef<THREE.AnimationAction | null>(null);
-  useEffect(() => {
-    const next = actions[`CharacterArmature|${anim}`];
-    if (!next) return;
-    const prev = current.current;
-    if (prev && prev !== next) prev.fadeOut(0.25);
-    next.reset().fadeIn(0.25).play();
-    current.current = next;
-  }, [actions, anim]);
-  // model is centred on its origin and ~1.7 tall; lift it so its feet sit on y=0
+  }, [scene, tint]);
+  const spin = useRef<THREE.Group>(null);
+  const body = useRef<THREE.Group>(null);
+  useFrame(({ camera, clock }) => {
+    const t = clock.getElapsedTime();
+    const sp = spin.current;
+    if (sp) {
+      if (faceCamera) {
+        sp.getWorldPosition(camTmp);
+        sp.rotation.y = Math.atan2(camera.position.x - camTmp.x, camera.position.z - camTmp.z);
+      } else sp.rotation.y = 0;
+    }
+    const b = body.current;
+    if (!b) return;
+    if (anim === "walk") {
+      b.position.y = Math.abs(Math.sin(t * 10)) * 0.14;
+      b.rotation.z = Math.sin(t * 10) * 0.08;
+      b.rotation.x = 0;
+      b.scale.set(1, 1, 1);
+    } else if (anim === "work") {
+      b.position.y = 0;
+      b.rotation.z = 0;
+      b.rotation.x = 0.1 + Math.sin(t * 9) * 0.06;
+      b.scale.set(1, 1, 1);
+    } else {
+      b.position.y = 0;
+      b.rotation.x = 0;
+      b.rotation.z = Math.sin(t * 1.5) * 0.03;
+      b.scale.set(1, 1 + Math.sin(t * 2) * 0.02, 1);
+    }
+  });
+  // model spans y −1.31…1.01 and faces +z; lift so the paws sit on y=0
   return (
     <group {...props}>
-      <group ref={root} position={[0, 0.91, 0]}>
-        <primitive object={obj} />
+      <group ref={spin}>
+        {children}
+        <group ref={body}>
+          <group position={[0, 1.31, 0]}>
+            <primitive object={obj} />
+          </group>
+        </group>
       </group>
     </group>
   );

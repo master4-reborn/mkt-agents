@@ -5,7 +5,7 @@ import Link from "next/link";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { ContactShadows, OrbitControls, PerspectiveCamera } from "@react-three/drei";
-import { Cat, Castle, House, NatureTree, Piece, preloadOffice, type CatAnim } from "./OfficeModels";
+import { Cat, Castle, House, NatureTree, Piece, preloadOffice } from "./OfficeModels";
 
 export type MapEmployee = {
   agent: "lead" | "research" | "writer" | "qa" | "metrics";
@@ -35,12 +35,12 @@ const C = {
   gold: "#f6c454",
 };
 
-const META: Record<Agent, { name: string; fur: string; stripes: string; roof: string; tools: string; job: string; demoTask: string }> = {
-  lead: { name: "Điều phối", fur: "#fff7f9", stripes: "#ffc9dc", roof: C.roofs[0], tools: "Giao việc, đọc, ghi", job: "Nhận lệnh của bạn, chia việc, giữ cổng duyệt, báo cáo ba dòng", demoTask: "" },
-  research: { name: "Nghiên cứu", fur: "#cdb8ff", stripes: "#9f7fe6", roof: "#a98bff", tools: "Tìm web, đọc web, bash", job: "Quét đối thủ và bình luận, bảng nỗi đau, 5 chủ đề", demoTask: "quét đối thủ và bình luận tuần này" },
-  writer: { name: "Viết bài", fur: "#ff9ec4", stripes: "#e8619a", roof: "#ff6fa3", tools: "Chỉ đọc, ghi file", job: "3 đến 5 bài nháp mỗi tuần, đúng giọng thương hiệu", demoTask: "viết 4 bài nháp từ 5 chủ đề" },
-  qa: { name: "QA-QC", fur: "#ffd0b0", stripes: "#f0955e", roof: "#ffb06b", tools: "Chỉ đọc, ghi file", job: "Soát số liệu, từ cấm, giọng, độ dài; đặt trạng thái", demoTask: "soát 4 bài nháp, đặt trạng thái" },
-  metrics: { name: "Đo số liệu", fur: "#fff0a8", stripes: "#e6c24d", roof: "#6fcfae", tools: "Đọc CSV, bash", job: "So sánh tuần, lặp lại / bỏ, việc cho thứ 2", demoTask: "so số liệu tuần này với tuần trước" },
+const META: Record<Agent, { name: string; fur: string; roof: string; tools: string; job: string; demoTask: string }> = {
+  lead: { name: "Điều phối", fur: "#fff7f9", roof: C.roofs[0], tools: "Giao việc, đọc, ghi", job: "Nhận lệnh của bạn, chia việc, giữ cổng duyệt, báo cáo ba dòng", demoTask: "" },
+  research: { name: "Nghiên cứu", fur: "#cdb8ff", roof: "#a98bff", tools: "Tìm web, đọc web, bash", job: "Quét đối thủ và bình luận, bảng nỗi đau, 5 chủ đề", demoTask: "quét đối thủ và bình luận tuần này" },
+  writer: { name: "Viết bài", fur: "#ff9ec4", roof: "#ff6fa3", tools: "Chỉ đọc, ghi file", job: "3 đến 5 bài nháp mỗi tuần, đúng giọng thương hiệu", demoTask: "viết 4 bài nháp từ 5 chủ đề" },
+  qa: { name: "QA-QC", fur: "#ffd0b0", roof: "#ffb06b", tools: "Chỉ đọc, ghi file", job: "Soát số liệu, từ cấm, giọng, độ dài; đặt trạng thái", demoTask: "soát 4 bài nháp, đặt trạng thái" },
+  metrics: { name: "Đo số liệu", fur: "#fff0a8", roof: "#6fcfae", tools: "Đọc CSV, bash", job: "So sánh tuần, lặp lại / bỏ, việc cho thứ 2", demoTask: "so số liệu tuần này với tuần trước" },
 };
 
 const RING = 6.4;
@@ -77,7 +77,7 @@ const Mat = ({ color, flat = true }: { color: string; flat?: boolean }) => <mesh
 
 function Laptop({ open }: { open: boolean }) {
   return (
-    <group position={[0, 0, 1.35]} scale={1.5}>
+    <group position={[0, 0, 1.7]} scale={2.2}>
       <mesh position={[0, 0.03, 0]}>
         <boxGeometry args={[0.42, 0.04, 0.3]} />
         <Mat color="#fff" />
@@ -287,7 +287,7 @@ function demoAt(t: number): Demo {
 
 const STOP = Object.fromEntries(ORDER.map((a) => [a, onRing(a, STOP_R)])) as Record<Exclude<Agent, "lead">, [number, number, number]>;
 const LEAD_HOME: [number, number, number] = [0, 0, 3.6];
-const CAT_SCALE = 1.0;
+const CAT_SCALE = 0.7;
 const PROPS: Record<Exclude<Agent, "lead">, string> = { research: "cupcake", writer: "ice-cream", qa: "donut-sprinkles", metrics: "cake-birthday" };
 
 function Train() {
@@ -315,7 +315,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const leadRef = useRef<THREE.Group>(null);
   const demoStart = useRef(0);
-  const leadPos = useRef<[number, number, number]>([LEAD_HOME[0], 2.5, LEAD_HOME[2]]);
+  const leadPos = useRef<[number, number, number]>([LEAD_HOME[0], 2.0, LEAD_HOME[2]]);
 
   useEffect(() => {
     controls.current?.reset();
@@ -331,7 +331,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
         leadRef.current.position.set(...LEAD_HOME);
         leadRef.current.rotation.y = 0;
       }
-      leadPos.current = [LEAD_HOME[0], 2.5, LEAD_HOME[2]];
+      leadPos.current = [LEAD_HOME[0], 2.0, LEAD_HOME[2]];
       return;
     }
     if (!demoStart.current) demoStart.current = clock.getElapsedTime();
@@ -340,13 +340,12 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
       leadRef.current.position.set(...d.leadPos);
       leadRef.current.rotation.y = d.leadRot;
     }
-    leadPos.current = [d.leadPos[0], 2.5, d.leadPos[2]];
+    leadPos.current = [d.leadPos[0], 2.0, d.leadPos[2]];
     if (!demoView || demoView.leadMode !== d.leadMode || demoView.leadLine !== d.leadLine || ORDER.some((a) => demoView.states[a] !== d.states[a])) setDemoView(d);
   });
 
   const byAgent = Object.fromEntries(team.map((t) => [t.agent, t])) as Record<Agent, MapEmployee>;
   const leadMode: Mode = demo && demoView ? demoView.leadMode : byAgent.lead.state === "working" ? "work" : "idle";
-  const animFor = (mode: Mode): CatAnim => (mode === "walk" ? "Walk" : mode === "work" ? "Yes" : "Idle");
 
   return (
     <>
@@ -363,13 +362,12 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
         <group onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setSel("lead"); }}>
           <Castle scale={1.3} />
           <group ref={leadRef} position={LEAD_HOME}>
-            <Cat fur={META.lead.fur} stripes={META.lead.stripes} anim={animFor(leadMode)} scale={CAT_SCALE} />
-            <group position={[0, 1.86, 0]}>
-              <mesh>
-                <cylinderGeometry args={[0.3, 0.36, 0.24, 5]} />
+            <Cat tint={META.lead.fur} anim={leadMode} faceCamera={leadMode !== "walk"} scale={CAT_SCALE}>
+              <mesh position={[0, 2.5, -0.1]}>
+                <cylinderGeometry args={[0.42, 0.5, 0.36, 5]} />
                 <meshStandardMaterial color={C.gold} roughness={0.5} metalness={0.3} flatShading />
               </mesh>
-            </group>
+            </Cat>
           </group>
         </group>
         {ORDER.map((agent) => {
@@ -386,9 +384,10 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
               <Piece kit="food" name={PROPS[agent]} position={prop} rotation={[0, -a, 0]} scale={2.3} />
               <Piece kit="holiday" name="candy-cane-red" position={cane} rotation={[0, -a + 0.4, 0]} scale={2.4} />
               <Piece kit="town" name="lantern" position={lantern} scale={0.9} />
-              <group position={STOP[agent]} rotation={[0, -a - Math.PI / 2, 0]}>
-                <Cat fur={META[agent].fur} stripes={META[agent].stripes} anim={state === "working" ? "Yes" : "Idle"} scale={CAT_SCALE} />
-                <Laptop open={state !== "waiting"} />
+              <group position={STOP[agent]}>
+                <Cat tint={META[agent].fur} anim={state === "working" ? "work" : "idle"} faceCamera scale={CAT_SCALE}>
+                  <Laptop open={state !== "waiting"} />
+                </Cat>
                 {sel === agent && (
                   <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
                     <ringGeometry args={[1.0, 1.2, 40]} />
@@ -420,10 +419,10 @@ export default function Office3D({ team, waiting, week }: { team: MapEmployee[];
   const nodes = useMemo<Nodes>(() => new Map(), []);
   const anchors = useMemo<Anchor[]>(
     () => [
-      { id: "b:lead", pos: [LEAD_HOME[0], 2.5, LEAD_HOME[2]] },
+      { id: "b:lead", pos: [LEAD_HOME[0], 2.0, LEAD_HOME[2]] },
       { id: "n:lead", pos: [0, 7.2, 0] },
       ...ORDER.flatMap((a): Anchor[] => [
-        { id: `b:${a}`, pos: [STOP[a][0], 2.5, STOP[a][2]] },
+        { id: `b:${a}`, pos: [STOP[a][0], 2.0, STOP[a][2]] },
         { id: `n:${a}`, pos: [STOP[a][0], -0.05, STOP[a][2]] },
       ]),
     ],
