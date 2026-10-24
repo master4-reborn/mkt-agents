@@ -2,7 +2,7 @@
 // a real Postgres (Supabase) when DATABASE_URL is set.
 import { sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import { files, decisions, messages, settings } from "./schema";
+import { files, decisions, messages, settings, activity } from "./schema";
 
 type Db = PgDatabase<any, any, any>;
 
@@ -36,6 +36,14 @@ create table if not exists settings (
   key text primary key,
   value text not null
 );
+create table if not exists activity (
+  id text primary key,
+  agent text not null,
+  kind text not null,
+  text text not null,
+  created_at timestamptz not null
+);
+create index if not exists activity_agent_idx on activity (agent, created_at desc);
 `;
 
 let dbPromise: Promise<Db> | null = null;
@@ -65,4 +73,4 @@ export function getDb(): Promise<Db> {
   return dbPromise;
 }
 
-export { files, decisions, messages, settings };
+export { files, decisions, messages, settings, activity };

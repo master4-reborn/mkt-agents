@@ -33,3 +33,12 @@ export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+// What each employee is doing: thread status changes and the messages between the lead and its team.
+export const activity = pgTable("activity", {
+  id: text("id").primaryKey(), // session event id
+  agent: text("agent").notNull(), // lead | research | writer | qa | metrics
+  kind: text("kind").notNull(), // task | report | running | idle
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
