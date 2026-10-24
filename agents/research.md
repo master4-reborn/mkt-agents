@@ -7,8 +7,7 @@ tools:
     default_config: {enabled: true, permission_policy: {type: auto}}
     configs:
       - name: web_search
-        enabled: true
-        user_location: {type: approximate, country: VN, timezone: Asia/Ho_Chi_Minh}
+        enabled: true   # user_location omitted: the search provider rejects country VN
       - name: web_fetch
         enabled: true
         max_content_tokens: 30000

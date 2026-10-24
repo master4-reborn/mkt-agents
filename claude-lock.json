@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "origin": {
+    "base_url": "https://api.anthropic.com",
+    "organization_id": "0cd19866-d1e2-44c1-b2dc-af3c69b9e482",
+    "workspace_id": "wrkspc_01Namr8aE99vKNDPKKL48rXT"
+  },
+  "resources": {
+    "./agents/lead.md": {
+      "kind": "agent",
+      "id": "agent_01E6xhQUBSJBWEQWviNregfj",
+      "version": "1",
+      "hash": "6ab9148f157cdad770a41b7d5db7e730",
+      "remote_hash": "5fbae9a3623e31ac598960f292215205"
+    },
+    "./agents/metrics.md": {
+      "kind": "agent",
+      "id": "agent_01SkNsFtHHMcp7M8CawsZue9",
+      "version": "1",
+      "hash": "6dee5338c1d4b4920d31a3028825845e",
+      "remote_hash": "9bd74871610bd7a9813392edd7747a34"
+    },
+    "./agents/qa.md": {
+      "kind": "agent",
+      "id": "agent_01SydpWcgxu3g3kVdt61CM6j",
+      "version": "1",
+      "hash": "098e2a1355abdf98523df95c0263e634",
+      "remote_hash": "344fa6cb824e8afbeadcbde87d51614e"
+    },
+    "./agents/research.md": {
+      "kind": "agent",
+      "id": "agent_015B6RM8jAFFQexSqv8hqpkb",
+      "version": "1",
+      "hash": "ca6be2bb57a8f76bed056d7a6893d670",
+      "remote_hash": "d53765baa8342c97b1a7fa14d154fbe1"
+    },
+    "./agents/writer.md": {
+      "kind": "agent",
+      "id": "agent_01GSSdB1WE3ZXG4Tv19d4Pvn",
+      "version": "1",
+      "hash": "43207f022414ac213f4dc9298c14aa12",
+      "remote_hash": "939dd5ffa834f314d5a95d36943aa0bd"
+    },
+    "./environments/cloud.yaml": {
+      "kind": "environment",
+      "id": "env_01B7vVh4dJfAWr6hDgjcELwS",
+      "hash": "a441d35ded185facb33362b079d3a40b",
+      "remote_hash": "55ebfba58255e083902a0854691eaf97"
+    }
+  }
+}

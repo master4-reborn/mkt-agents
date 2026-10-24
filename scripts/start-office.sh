@@ -24,7 +24,8 @@ SID=$(ant beta:sessions create \
 mkdir -p .office
 echo "$SID" > .office/session_id
 echo "Session: $SID"
-echo "Console: https://platform.claude.com/workspaces/default/sessions/$SID"
+WS=$(python3 -I -c 'import json; print(json.load(open("claude-lock.json"))["origin"].get("workspace_id","default"))')
+echo "Console: https://platform.claude.com/workspaces/$WS/sessions/$SID"
 
 ant beta:sessions:events send --session-id "$SID" \
   --event '{type: user.message, content: [{type: text, text: "@./prompts/first-run.md"}]}' >/dev/null
