@@ -351,7 +351,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
     <>
       <PerspectiveCamera makeDefault position={[17, 12.5, 17]} fov={32} />
       <FitCamera />
-      <OrbitControls ref={controls} makeDefault target={[0, 1.9, 0]} enablePan={false} autoRotate={autoRotate} autoRotateSpeed={0.5} minDistance={10} maxDistance={36} minPolarAngle={0.5} maxPolarAngle={1.25} />
+      <OrbitControls ref={controls} makeDefault target={[0, 1.5, 0]} enablePan={false} autoRotate={autoRotate} autoRotateSpeed={0.5} minDistance={10} maxDistance={36} minPolarAngle={0.5} maxPolarAngle={1.25} />
       <ambientLight intensity={0.45} />
       <hemisphereLight args={["#ffffff", "#ffd1e3", 0.55]} />
       <directionalLight position={[8, 14, 6]} intensity={2.2} />
@@ -360,7 +360,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
       <Suspense fallback={null}>
         <Train />
         <group onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setSel("lead"); }}>
-          <Castle scale={1.3} />
+          <Castle scale={0.95} />
           <group ref={leadRef} position={LEAD_HOME}>
             <Cat fur={META.lead.fur} anim={leadMode} faceCamera={leadMode !== "walk"} scale={CAT_SCALE}>
               <mesh position={[0, 1.01, 0.08]}>
@@ -420,7 +420,7 @@ export default function Office3D({ team, waiting, week }: { team: MapEmployee[];
   const anchors = useMemo<Anchor[]>(
     () => [
       { id: "b:lead", pos: [LEAD_HOME[0], 2.1, LEAD_HOME[2]] },
-      { id: "n:lead", pos: [0, 7.2, 0] },
+      { id: "n:lead", pos: [0, 5.4, 0] },
       ...ORDER.flatMap((a): Anchor[] => [
         { id: `b:${a}`, pos: [STOP[a][0], 2.1, STOP[a][2]] },
         { id: `n:${a}`, pos: [STOP[a][0], -0.9, STOP[a][2]] },
