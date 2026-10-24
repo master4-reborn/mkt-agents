@@ -84,9 +84,11 @@ export async function currentFiles(kind?: string) {
     : [];
   return latest.map((f) => {
     const d = decs.find((x) => x.fileName === f.name);
+    // Re-parse at read time so a better parser applies to files synced earlier.
+    const p = parseFile(f.name, f.content);
     // A decision newer than the file version overrides its status until the lead re-delivers it.
-    const status = d && d.createdAt > f.createdAt ? d.decision : f.status;
-    return { ...f, status, decision: d ?? null };
+    const status = d && d.createdAt > f.createdAt ? d.decision : p.status;
+    return { ...f, status, title: p.title, week: p.week, decision: d ?? null };
   });
 }
 

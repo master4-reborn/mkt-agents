@@ -23,6 +23,12 @@ export default async function Drafts() {
           <FileList rows={drafts.filter((d) => statuses.includes(d.status ?? ""))} base="/drafts" empty="Trống." />
         </section>
       ))}
+      {drafts.some((d) => !GROUPS.flatMap(([, s]) => s).includes(d.status ?? "")) && (
+        <section className="space-y-2">
+          <h2 className="font-medium">Khác</h2>
+          <FileList rows={drafts.filter((d) => !GROUPS.flatMap(([, s]) => s).includes(d.status ?? ""))} base="/drafts" empty="" />
+        </section>
+      )}
     </div>
   );
 }

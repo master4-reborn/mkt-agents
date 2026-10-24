@@ -22,13 +22,19 @@ export function parseFile(name: string, content: string): Parsed {
   let data: Record<string, unknown> = {};
   let body = content;
   try {
-    const m = matter(content);
+    // Options object: without one, gray-matter caches the unparsed file before parsing,
+    // so a second call on the same content silently returns empty data instead of throwing.
+    const m = matter(content, {});
     data = m.data ?? {};
     body = m.content;
   } catch {
-    // no front matter, keep the whole content
+    // The team writes front matter by hand; a value like `approved: 2026-10-24 (sếp: "approve")`
+    // is not valid YAML. Fall back to one `key: value` per line.
+    const loose = looseFrontMatter(content);
+    data = loose.data;
+    body = loose.body;
   }
-  const status = str(data.status);
+  const status = str(data.status)?.split(/\s+/)[0]?.toLowerCase() ?? null;
   const week = str(data.week) ?? (name.match(/^\d{4}-W\d{2}/)?.[0] ?? null);
   const topic = str(data.topic);
   const title =
@@ -36,6 +42,17 @@ export function parseFile(name: string, content: string): Parsed {
     body.match(/^#\s+(.+)$/m)?.[1] ??
     name.replace(/\.md$/, "").replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(/-/g, " ");
   return { data, body, status, week, title };
+}
+
+function looseFrontMatter(content: string): { data: Record<string, unknown>; body: string } {
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (!m) return { data: {}, body: content };
+  const data: Record<string, unknown> = {};
+  for (const line of m[1].split(/\r?\n/)) {
+    const kv = line.match(/^([A-Za-z_][\w-]*):\s*(.*)$/);
+    if (kv) data[kv[1]] = kv[2].replace(/^["']|["']$/g, "").trim();
+  }
+  return { data, body: content.slice(m[0].length) };
 }
 
 function str(v: unknown): string | null {
