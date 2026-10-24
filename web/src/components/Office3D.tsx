@@ -77,7 +77,7 @@ const Mat = ({ color, flat = true }: { color: string; flat?: boolean }) => <mesh
 
 function Laptop({ open }: { open: boolean }) {
   return (
-    <group position={[0, 0, 0.75]} scale={1.1}>
+    <group position={[0, 0, 0.62]} scale={1.1}>
       <mesh position={[0, 0.03, 0]}>
         <boxGeometry args={[0.42, 0.04, 0.3]} />
         <Mat color="#fff" />
@@ -287,7 +287,7 @@ function demoAt(t: number): Demo {
 
 const STOP = Object.fromEntries(ORDER.map((a) => [a, onRing(a, STOP_R)])) as Record<Exclude<Agent, "lead">, [number, number, number]>;
 const LEAD_HOME: [number, number, number] = [0, 0, 3.6];
-const CAT_SCALE = 1.8; // world height of a cat
+const CAT_SCALE = 1.6; // world height of a cat
 const PROPS: Record<Exclude<Agent, "lead">, string> = { research: "cupcake", writer: "ice-cream", qa: "donut-sprinkles", metrics: "cake-birthday" };
 
 function Train() {
@@ -363,8 +363,8 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
           <Castle scale={1.3} />
           <group ref={leadRef} position={LEAD_HOME}>
             <Cat fur={META.lead.fur} anim={leadMode} faceCamera={leadMode !== "walk"} scale={CAT_SCALE}>
-              <mesh position={[0, 1.0, 0.5]}>
-                <cylinderGeometry args={[0.12, 0.15, 0.13, 5]} />
+              <mesh position={[0, 1.01, 0.08]}>
+                <cylinderGeometry args={[0.12, 0.15, 0.14, 5]} />
                 <meshStandardMaterial color={C.gold} roughness={0.5} metalness={0.3} flatShading />
               </mesh>
             </Cat>
@@ -423,7 +423,7 @@ export default function Office3D({ team, waiting, week }: { team: MapEmployee[];
       { id: "n:lead", pos: [0, 7.2, 0] },
       ...ORDER.flatMap((a): Anchor[] => [
         { id: `b:${a}`, pos: [STOP[a][0], 2.1, STOP[a][2]] },
-        { id: `n:${a}`, pos: [STOP[a][0], -0.05, STOP[a][2]] },
+        { id: `n:${a}`, pos: [STOP[a][0], -0.9, STOP[a][2]] },
       ]),
     ],
     [],
