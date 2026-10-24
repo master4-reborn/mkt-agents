@@ -1,5 +1,5 @@
-Run week {{WEEK}}.
+Chạy tuần {{WEEK}}.
 
-Follow the weekly cycle: research, then writer (3 to 5 drafts), then qa, then copy the week's files to /mnt/session/outputs/{{WEEK}}/ and report.
+Làm theo chu trình tuần: nghiên cứu, rồi viết 3 đến 5 bài, rồi QA, rồi chép các file của tuần vào /mnt/session/outputs/{{WEEK}}/ và báo cáo.
 
-Boss's note for this week: {{NOTE}}
+Ghi chú của sếp cho tuần này: {{NOTE}}

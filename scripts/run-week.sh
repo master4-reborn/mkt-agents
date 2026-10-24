@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 SID=$(cat .office/session_id)
 WEEK="${WEEK:-$(date +%G-W%V)}"
-NOTE="${1:-none}"
+NOTE="${1:-không có}"
 
 TMP=$(mktemp)
 sed -e "s/{{WEEK}}/$WEEK/g" -e "s|{{NOTE}}|$NOTE|g" prompts/weekly.md > "$TMP"

@@ -1,24 +1,27 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
 import { sync, fileByName } from "@/lib/sync";
-import { parseFile } from "@/lib/parse";
+import { parseFile, weekNo } from "@/lib/parse";
 import { Markdown } from "@/components/Markdown";
-import { StatusChip } from "@/components/StatusChip";
+import { IconBack } from "@/components/Icons";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page({ params }: { params: Promise<{ name: string }> }) {
+export default async function Report({ params }: { params: Promise<{ name: string }> }) {
   await requireAuth();
   const { name } = await params;
   await sync().catch(() => {});
   const f = await fileByName(decodeURIComponent(name));
-  if (!f) notFound();
+  if (!f || f.kind !== "report") notFound();
   const p = parseFile(f.name, f.content);
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2"><StatusChip status={f.status} /><span className="text-xs text-zinc-500">{f.name}</span></div>
-      <h1 className="text-xl font-semibold">{f.title}</h1>
-      <div className="card"><Markdown className="text-sm">{p.body}</Markdown></div>
+    <div className="flex flex-col gap-3.5">
+      <div className="flex items-center gap-2.5">
+        <Link href="/reports" aria-label="Quay lại" className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-card text-ink"><IconBack /></Link>
+        <h1 className="text-lg font-bold">Báo cáo tuần {weekNo(f.week)}</h1>
+      </div>
+      <div className="card"><Markdown>{p.body.replace(/^#\s+.*\n/, "")}</Markdown></div>
     </div>
   );
 }

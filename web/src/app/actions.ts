@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 import { getDb, decisions } from "@/lib/db";
 import { say, weekLabel } from "@/lib/office";
 import { requireAuth, login } from "@/lib/auth";
-import { sync } from "@/lib/sync";
+import { sync, currentFiles } from "@/lib/sync";
 
+// Orders go to the lead in Vietnamese so it answers in Vietnamese (it mirrors the boss's language).
 const WEEK_ORDER = (week: string, note: string) =>
-  `Run week ${week}.\n\nFollow the weekly cycle: research, then writer (3 to 5 drafts), then qa, then copy the week's files to /mnt/session/outputs/${week}/ and report.\n\nBoss's note for this week: ${note || "none"}`;
+  `Chạy tuần ${week}.\n\nLàm theo chu trình tuần: nghiên cứu, rồi viết 3 đến 5 bài, rồi QA, rồi chép các file của tuần vào /mnt/session/outputs/${week}/ và báo cáo.\n\nGhi chú của sếp cho tuần này: ${note || "không có"}`;
 
 export async function runWeek(formData: FormData) {
   await requireAuth();
@@ -20,7 +21,7 @@ export async function runWeek(formData: FormData) {
 export async function runMetrics(formData: FormData) {
   await requireAuth();
   const week = String(formData.get("week") ?? "").trim() || weekLabel();
-  await say(`Run metrics for ${week}. Then copy reports/${week}.md to /mnt/session/outputs/${week}/ and report.`);
+  await say(`Chạy số liệu tuần ${week}. Xong thì chép reports/${week}.md vào /mnt/session/outputs/${week}/ và báo cáo.`);
   revalidatePath("/");
 }
 
@@ -30,16 +31,17 @@ export async function newBrand(formData: FormData) {
   if (!sentence) return;
   await say(`New brand: ${sentence}`);
   revalidatePath("/brand");
+  redirect("/chat");
 }
 
-export async function updateBrand(formData: FormData) {
+// A plain-language change to the brand card, e.g. "đổi lịch đăng thành thứ 3, 5".
+export async function askBrand(formData: FormData) {
   await requireAuth();
-  const content = String(formData.get("content") ?? "").trim();
-  if (!content) return;
-  await say(
-    `Replace /workspace/brand/BRAND.md with the file below, exactly as written (move the old one to archive/), copy it to /mnt/session/outputs/BRAND.md, then re-read it and tell me in three lines whether anything is still a placeholder.\n\n${content}`,
-  );
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) return;
+  await say(`Sửa thẻ thương hiệu (brand/BRAND.md) theo yêu cầu sau, giữ nguyên phần còn lại, rồi chép lại vào /mnt/session/outputs/BRAND.md và báo cáo: ${text}`);
   revalidatePath("/brand");
+  redirect("/chat");
 }
 
 export async function decide(formData: FormData) {
@@ -50,14 +52,36 @@ export async function decide(formData: FormData) {
   if (!name || !["approved", "rejected"].includes(decision)) return;
   const db = await getDb();
   await db.insert(decisions).values({ fileName: name, decision, note: note || null });
+  // The approve/reject protocol is the lead's; it stays as written in agents/lead.md.
   const order =
     decision === "approved"
       ? `approve content/drafts/${name}`
       : `reject content/drafts/${name}: ${note || "không có ghi chú"}`;
   await say(order);
-  revalidatePath("/drafts");
-  revalidatePath(`/drafts/${name}`);
-  redirect("/drafts");
+  revalidatePath("/", "layout");
+  // Straight on to the next post waiting, if there is one.
+  const next = (await currentFiles("draft")).find((d) => d.status === "ready" && d.name !== name);
+  redirect(next ? `/drafts/${encodeURIComponent(next.name)}` : "/drafts");
+}
+
+// The boss posted an approved draft themselves; only this page needs to know.
+export async function markPosted(formData: FormData) {
+  await requireAuth();
+  const name = String(formData.get("name") ?? "");
+  if (!name) return;
+  const db = await getDb();
+  await db.insert(decisions).values({ fileName: name, decision: "posted", note: null });
+  revalidatePath("/", "layout");
+}
+
+// Asks the writer for one more draft from a research topic that did not become a post.
+export async function writeTopic(formData: FormData) {
+  await requireAuth();
+  const week = String(formData.get("week") ?? "").trim();
+  const n = String(formData.get("n") ?? "").trim();
+  if (!week || !n) return;
+  await say(`Viết thêm 1 bài từ chủ đề ${n} trong research/${week}-topics.md: writer viết nháp, qa kiểm, rồi chép vào /mnt/session/outputs/${week}/ và báo cáo.`);
+  redirect("/chat");
 }
 
 export async function sendMessage(formData: FormData) {

@@ -1,9 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { sync, currentFiles } from "@/lib/sync";
-import { parseFile } from "@/lib/parse";
-import { Markdown } from "@/components/Markdown";
-import { StatusChip } from "@/components/StatusChip";
-import { newBrand, updateBrand } from "../actions";
+import { parseFile, brandCard, md, type Field } from "@/lib/parse";
+import { newBrand, askBrand } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -12,32 +10,109 @@ export default async function Brand() {
   await sync().catch(() => {});
   const brand = (await currentFiles("brand"))[0] ?? null;
   const p = brand ? parseFile(brand.name, brand.content) : null;
-  return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">Thương hiệu</h1>
+  const card = p ? brandCard(p.body) : [];
+  const field = (sec: RegExp, lab: RegExp) => card.find((s) => sec.test(s.title))?.fields.find((f) => lab.test(f.label));
+  const shopName = field(/^Shop/i, /tên/i)?.value ?? "Thương hiệu";
+  const niche = field(/^Shop/i, /ngách/i)?.value ?? "";
+  const channel = field(/^Kênh/i, /kênh đăng/i)?.value ?? "";
+  const ready = brand?.status === "ready";
 
-      <form action={newBrand} className="card space-y-2">
-        <div className="font-medium">{brand ? "Thương hiệu mới" : "Tạo thương hiệu"}</div>
-        <p className="text-sm text-zinc-600">Một câu: bán gì, cho ai, đăng kênh nào. Đội tự viết thẻ, tìm đối thủ và hỏi lại bạn tối đa 3 câu.</p>
-        <input name="sentence" className="input" placeholder="bán matcha cho dân văn phòng Hà Nội, đăng Threads, xưng mình/bạn" required />
-        <button className="btn-primary">Gửi cho đội</button>
+  if (!brand || !p)
+    return (
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-bold">Thương hiệu</h1>
+        <section className="flex flex-col gap-3 rounded-[20px] bg-accent-soft p-5">
+          <div className="eyebrow text-accent-deep">Bắt đầu</div>
+          <div className="text-[22px] font-bold leading-tight">Cho đội biết bạn bán gì</div>
+          <div className="text-sm text-[#6b3d53]">Một câu: bán gì, cho ai, đăng kênh nào. Đội tự viết thẻ, tìm đối thủ và hỏi lại bạn tối đa 3 câu.</div>
+          <form action={newBrand} className="flex flex-col gap-2">
+            <input name="sentence" className="input" placeholder="bán matcha cho dân văn phòng Hà Nội, đăng Threads, xưng mình/bạn" required />
+            <button className="btn btn-accent">Gửi cho đội</button>
+          </form>
+        </section>
+      </div>
+    );
+
+  return (
+    <div className="flex flex-col gap-3.5">
+      <div className="flex items-center gap-3">
+        <span className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-2xl bg-ink text-xl font-bold text-white">{shopName.trim().charAt(0).toUpperCase()}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h1 className="truncate text-[22px] font-bold">{shopName}</h1>
+          <div className="truncate text-xs text-muted">{[channel, niche].filter(Boolean).join(" · ")}</div>
+        </div>
+        <span className={`chip ${ready ? "chip-ok" : "chip-warn"}`}>{ready ? "Sẵn sàng" : "Đang hoàn thiện"}</span>
+      </div>
+      <p className="text-[13px] leading-relaxed text-muted">Đội đọc thẻ này trước mỗi tuần. Dòng nào ghi <i>ước tính</i> là đội đoán, bạn sửa bằng một câu ở dưới.</p>
+
+      {card.map((s) => (
+        <section key={s.title} className="overflow-hidden rounded-[18px] border border-line bg-card">
+          <div className="px-4 pb-1.5 pt-3 text-xs font-bold uppercase tracking-wider text-muted">{s.title}</div>
+          {s.fields.filter((f) => !/^tên shop$/i.test(f.label)).map((f) => <FieldRow key={f.label} f={f} />)}
+          {s.items.map((it, i) => /đối thủ/i.test(s.title) ? <CompetitorRow key={i} text={it} /> : <div key={i} className="row text-sm leading-relaxed">{it}</div>)}
+          {s.fields.length === 0 && s.items.length === 0 && <div className="row text-sm text-muted">chưa có</div>}
+        </section>
+      ))}
+
+      <form action={askBrand} className="card flex flex-col gap-2">
+        <div className="text-[15px] font-bold">Sửa thẻ</div>
+        <div className="text-[13px] text-muted">Nói một câu, đội tự sửa đúng dòng. Ví dụ: “lịch đăng là thứ 3 và thứ 5, 20h”.</div>
+        <input name="text" className="input" placeholder="Muốn đổi gì?" required />
+        <button className="btn btn-sm btn-dark">Gửi cho đội</button>
       </form>
 
-      {brand && p && (
-        <>
-          <div className="card">
-            <div className="flex items-center gap-2"><StatusChip status={brand.status} /><span className="text-xs text-zinc-500">cập nhật {brand.createdAt.toLocaleDateString("vi-VN")}</span></div>
-            <Markdown className="mt-2 text-sm">{p.body}</Markdown>
-          </div>
-          <details className="card">
-            <summary className="cursor-pointer text-sm font-medium">Sửa thẻ bằng tay</summary>
-            <form action={updateBrand} className="mt-2 space-y-2">
-              <textarea name="content" className="input font-mono text-xs" rows={24} defaultValue={brand.content} />
-              <button className="btn-ghost">Gửi bản sửa</button>
-            </form>
-          </details>
-        </>
-      )}
+      <details className="card">
+        <summary className="cursor-pointer text-sm font-semibold text-accent-deep">Đổi sang thương hiệu khác</summary>
+        <form action={newBrand} className="mt-3 flex flex-col gap-2">
+          <div className="text-[13px] text-muted">Thẻ hiện tại được cất vào kho; đội viết thẻ mới từ một câu của bạn.</div>
+          <input name="sentence" className="input" placeholder="bán gì, cho ai, đăng kênh nào" required />
+          <button className="btn btn-sm btn-outline">Gửi cho đội</button>
+        </form>
+      </details>
     </div>
   );
 }
+
+function FieldRow({ f }: { f: Field }) {
+  const isBanned = /từ cấm/i.test(f.label);
+  // "Từ cấm" groups are numbered lines of quoted words; show each word as a pill.
+  const words = isBanned ? [...new Set(f.items.filter((it) => !/^Cách nói thay/i.test(it)).flatMap((it) => [...it.matchAll(/"([^"]+)"|“([^”]+)”/g)].map((m) => m[1] ?? m[2])))] : [];
+  const extra = isBanned ? f.items.filter((it) => /^Cách nói thay/i.test(it)) : [];
+  return (
+    <div className="row items-start">
+      <span className="row-label pt-0.5">{f.label}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm leading-relaxed">
+        {f.value && !(isBanned && words.length) && <span>{f.value} {f.estimated && <Est />}</span>}
+        {isBanned && words.length > 0 ? (
+          <>
+            <span className="flex flex-wrap gap-1.5">{words.map((w) => <span key={w} className="chip chip-outline text-ink">{w}</span>)}</span>
+            {extra.map((e, i) => <span key={i} className="text-xs text-muted">{md(e)}</span>)}
+          </>
+        ) : f.items.length > 0 ? (
+          <ul className="flex flex-col gap-0.5">{f.items.map((it, i) => <li key={i}>{it.replace(/^\d+\.\s*/, "")}</li>)}</ul>
+        ) : null}
+        {!f.value && f.items.length === 0 && <span className="text-muted">chưa có</span>}
+      </span>
+    </div>
+  );
+}
+
+// "Name (place): web https://… · TikTok https://…. Đáng học: …" → name, link chips, note.
+function CompetitorRow({ text }: { text: string }) {
+  const urls = [...text.matchAll(/https?:\/\/[^\s)·,]+/g)].map((m) => m[0].replace(/[.,]$/, ""));
+  const name = text.split(/[:(]/)[0].trim();
+  const note = text.replace(/https?:\/\/[^\s)·,]+/g, "").replace(/^[^:]*\([^)]*\)?:?\s*/, "").replace(/^(?:web|TikTok|Threads|Facebook)\s*[·.]?\s*/gi, "").replace(/\s*[·.]\s*(?:web|TikTok|Threads|Facebook)\s*/gi, " ").replace(/\s{2,}/g, " ").replace(/^[\s.·]+/, "").trim();
+  const host = (u: string) => { const m = u.match(/^https?:\/\/(?:www\.)?([^/]+)\/?(@[\w.]+)?/); return m ? (m[2] ? `${m[1].replace(/\.com$/, "")} ${m[2]}` : m[1]) : u; };
+  return (
+    <div className="row items-start">
+      <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-accent-deep">{name.charAt(0).toUpperCase()}</span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="text-sm font-semibold">{name}</div>
+        {urls.length > 0 && <div className="flex flex-wrap gap-1.5">{urls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" className="chip chip-outline text-accent-deep">{host(u)}</a>)}</div>}
+        {note && <div className="text-[13px] leading-relaxed text-ink-soft">{note}</div>}
+      </div>
+    </div>
+  );
+}
+
+const Est = () => <span className="chip chip-accent px-1.5 py-0 text-[11px] font-medium">ước tính</span>;

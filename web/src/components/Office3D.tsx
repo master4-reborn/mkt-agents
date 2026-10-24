@@ -409,7 +409,8 @@ preloadOffice();
 
 /* ---------- page component ---------- */
 
-export default function Office3D({ team, waiting, week }: { team: MapEmployee[]; waiting: number; week: string }) {
+// compact: just the scene, filling its parent (the desktop home page). Otherwise the full page with the side panel.
+export default function Office3D({ team, waiting, week, compact = false }: { team: MapEmployee[]; waiting: number; week: string; compact?: boolean }) {
   const [sel, setSel] = useState<Agent>(team.find((t) => t.state === "working" && t.agent !== "lead")?.agent ?? "lead");
   const [autoRotate, setAutoRotate] = useState(true);
   const [bubbles, setBubbles] = useState(true);
@@ -443,8 +444,8 @@ export default function Office3D({ team, waiting, week }: { team: MapEmployee[];
   const chip = "rounded-full bg-white/90 px-3 py-1 text-[12px] font-semibold text-[#7a2b4c]";
 
   return (
-    <div className="grid gap-4 lg:mx-[calc(50%-min(50vw,590px))] lg:grid-cols-[1fr_300px] lg:items-start">
-      <div className="relative h-[56vh] min-h-[400px] overflow-hidden rounded-3xl border border-pink-200 sm:h-[64vh]" style={{ background: "linear-gradient(180deg,#ffe4ef 0%,#fff3f8 55%,#ffe9f2 100%)" }}>
+    <div className={compact ? "h-full" : "grid gap-4 lg:mx-[calc(50%-min(50vw,590px))] lg:grid-cols-[1fr_300px] lg:items-start"}>
+      <div className={`relative overflow-hidden rounded-3xl border border-pink-200 ${compact ? "h-full min-h-[520px]" : "h-[56vh] min-h-[400px] sm:h-[64vh]"}`} style={{ background: "linear-gradient(180deg,#ffe4ef 0%,#fff3f8 55%,#ffe9f2 100%)" }}>
         <Canvas dpr={[1, 1.75]} gl={{ alpha: true, antialias: true, toneMapping: THREE.NoToneMapping }} className="!absolute inset-0">
           <Scene team={team} demo={demo} demoView={demoView} setDemoView={setDemoView} autoRotate={autoRotate} sel={sel} setSel={setSel} resetKey={resetKey} nodes={nodes} anchors={anchors} />
         </Canvas>
@@ -483,7 +484,7 @@ export default function Office3D({ team, waiting, week }: { team: MapEmployee[];
         </div>
       </div>
 
-      <aside className="card space-y-3 border-pink-200 bg-[#fff7fa] lg:max-h-[64vh] lg:overflow-auto">
+      {!compact && <aside className="card space-y-3 border-pink-200 bg-[#fff7fa] lg:max-h-[64vh] lg:overflow-auto">
         <div className="flex items-center gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white text-2xl shadow-sm" style={{ background: m.fur }} aria-hidden>
             🐱
@@ -514,7 +515,7 @@ export default function Office3D({ team, waiting, week }: { team: MapEmployee[];
             ))}
           </div>
         </div>
-      </aside>
+      </aside>}
     </div>
   );
 }

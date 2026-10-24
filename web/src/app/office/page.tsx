@@ -1,7 +1,9 @@
 import { requireAuth } from "@/lib/auth";
 import { officeStatus, weekLabel } from "@/lib/office";
 import { sync, currentFiles, teamState, lastStopReason } from "@/lib/sync";
+import { weekNo } from "@/lib/parse";
 import { Poller } from "@/components/Poller";
+import { CatAvatar } from "@/components/CatAvatar";
 import OfficeScene from "@/components/OfficeScene";
 
 export const dynamic = "force-dynamic";
@@ -13,14 +15,11 @@ export default async function Office() {
   const waiting = drafts.filter((d) => d.status === "ready").length;
   const week = weekLabel();
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold">Văn phòng</h1>
-          <span className="chip bg-zinc-100 text-zinc-700">tuần {week}</span>
-        </div>
-        <Poller initial={{ ...status, stopReason }} />
-      </div>
+    <div className="flex flex-col gap-4">
+      <header className="flex items-center gap-2.5">
+        <CatAvatar size={36} />
+        <Poller title="Văn phòng" initial={{ ...status, stopReason }} week={weekNo(week)} />
+      </header>
       <OfficeScene team={team.map((t) => ({ ...t, since: t.since ? t.since.toISOString() : null }))} waiting={waiting} week={week} />
     </div>
   );
