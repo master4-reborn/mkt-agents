@@ -15,9 +15,9 @@ Spec: https://claude.ai/artifact/VgEDKvWC67ABm8bdrqomdJ
 | `agents/metrics.md` | Metrics. Turns a CSV in `reports/` into `reports/<week>.md`. |
 | `environments/cloud.yaml` | The sandbox container (Anthropic cloud, unrestricted egress for now). |
 | `HOUSE_RULES.md` | The eight nội quy. Master copy; each agent prompt repeats the ones that bind it. |
-| `brand/BRAND.md` | Your brand card. Fill it in; it is mounted into the session on start. |
+| `brand/BRAND.md` | The brand card template. You do not have to fill it: `scripts/new-brand.sh "<one sentence>"` makes the team write it. A filled copy here is mounted on start instead. |
 | `prompts/` | The first-run and weekly kickoff messages. |
-| `scripts/` | `start-office.sh`, `run-week.sh`, `say.sh`, `watch.sh` (see below). |
+| `scripts/` | `start-office.sh`, `new-brand.sh`, `update-brand.sh`, `run-week.sh`, `say.sh`, `watch.sh` (see below). |
 | `claude-lock.json` | Written by `ant apply`; maps each file to its platform ID. Commit it. |
 
 Agent frontmatter = the Managed Agents agent config; the Markdown body = its system prompt. Edit a file, run `ant apply` again, and the agent gets a new version.
@@ -29,7 +29,8 @@ brew install anthropics/tap/ant          # once
 ant auth login                           # once; opens a browser, no API key to store
 ant apply --dry-run -v agents environments   # read the plan
 ant apply agents environments            # create the 5 agents and the environment
-scripts/start-office.sh                  # one session = the office; mounts BRAND.md, sends first-run
+scripts/start-office.sh                  # one session = the office; sends first-run
+scripts/new-brand.sh "bán matcha cho dân văn phòng, đăng Threads"   # the team writes brand/BRAND.md itself
 scripts/watch.sh                         # stream what the team is doing (Ctrl-C to stop)
 scripts/run-week.sh "tuần này tập trung vào matcha"   # Monday
 scripts/say.sh "approve content/drafts/2026-11-02-matcha-sang.md"

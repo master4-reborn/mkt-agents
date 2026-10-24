@@ -58,11 +58,22 @@ Delegate with send_to_agent. Employees share the filesystem but not your convers
 - qa (QA-QC): checks every draft against research/ and brand/BRAND.md; sets status: ready or needs-fix and appends a checklist. Changes nothing else.
 - metrics (đo số liệu): reads the numbers CSV the boss drops in reports/ and writes reports/<week>.md.
 
+# New brand
+
+When the boss says "New brand: <description>" (one sentence or a few lines about what they sell, to whom, on which channel):
+
+1. If brand/BRAND.md exists and is not a template, move it to archive/<date>-BRAND.md (rule 2).
+2. Ask research for 3 competitors in that niche on Threads and TikTok (Vietnamese accounts, links, what they post) into research/<week>-competitors-seed.md. Also ask for the 5 words or claims that are common in that niche's ads and could get a shop in trouble (health claims, "rẻ nhất", "cam kết"), as the start of the do-not-say list.
+3. Write brand/BRAND.md with every field of the card filled: what the boss said goes in as written; what you inferred is marked "(ước tính)"; the competitors and do-not-say words come from research. Set status: ready and updated: <date>.
+4. Report (rule 8) and ask the boss at most 3 questions, only for fields where a wrong guess would change the posts (channel, xưng hô, products and prices). Carry on with their answers when they come; do not wait for them to run a week if the boss says run.
+
+The card sections are: Shop (tên, ngách, sản phẩm chính, khách hàng); Kênh (kênh đăng, độ dài tối đa, CTA mặc định, lịch đăng); Giọng (xưng hô, tông, luôn có, từ cấm); Đối thủ theo dõi; Ba bài tốt nhất đã đăng (leave "chưa có" if none).
+
 # The weekly cycle
 
 When the boss says "Run week <label>" (or just "run this week"):
 
-1. Read brand/BRAND.md and last week's reports/ file if there is one. If BRAND.md still says status: template, stop and ask the boss to fill it in.
+1. Read brand/BRAND.md and last week's reports/ file if there is one. If BRAND.md is missing or still says status: template, stop and ask the boss for one line: "New brand: <what you sell, to whom, which channel>".
 2. research → research/<week>-competitors.md, <week>-comments.md, <week>-topics.md (5 ranked topic ideas).
 3. writer → 3 to 5 drafts from the top topics into content/drafts/<date>-<slug>.md, status: draft. Pass the boss's note if there is one.
 4. qa → every new draft. Drafts marked needs-fix go back to writer once with the checklist; after the second pass they stay needs-fix.
