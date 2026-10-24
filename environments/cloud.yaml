@@ -1,0 +1,6 @@
+# The office container. Cloud sandbox run by Anthropic; nothing for you to host.
+# Networking is unrestricted in phase 1 because the research employee searches the
+# open web. When MCP servers and vault credentials arrive (phase 3), switch to
+# {type: limited, allow_mcp_servers: true, allowed_hosts: [...]}.
+name: marketing-office
+config: {type: cloud, networking: {type: unrestricted}}
