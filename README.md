@@ -2,7 +2,7 @@
 
 A one-person marketing team of AI employees, modeled on solomi's "Series AI Agent" (TikTok @_solouniverse), running hosted on Anthropic Managed Agents. Nothing runs on this Mac: this folder is the source code and config that gets synced to the platform and, from phase 2, deployed as a web app.
 
-Spec: https://claude.ai/artifact/VgEDKvWC67ABm8bdrqomdJ
+Spec (final v1): https://claude.ai/artifact/QPnbQhz1UXPs6nY5vqMHYG
 
 ## Phase 1 (this): the team as files
 
