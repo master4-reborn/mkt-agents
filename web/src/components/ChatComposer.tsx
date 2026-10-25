@@ -51,7 +51,7 @@ export function ChatComposer({ waiting, running }: { waiting: number; running: b
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-[84px] z-20 flex flex-col gap-2.5 border-t border-line bg-card px-4 pb-3 pt-2.5 lg:static lg:rounded-[18px] lg:border lg:p-4">
+      <div className="fixed inset-x-0 bottom-[84px] z-20 flex flex-col gap-2.5 border-t border-line bg-card px-4 pb-3 pt-2.5 lg:sticky lg:bottom-4 lg:rounded-[18px] lg:border lg:p-4 lg:shadow-[0_8px_30px_rgba(207,61,122,0.08)]">
         <div className="flex gap-2 overflow-x-auto">
           <form action={runWeek}>
             <SubmitButton className="chip h-9 flex-none border border-line bg-bg px-3 text-[13px] text-accent-deep" pendingLabel="Đang gửi lệnh…" spinnerSize={14} disabled={running}>
