@@ -9,9 +9,9 @@
     "./agents/lead.md": {
       "kind": "agent",
       "id": "agent_01E6xhQUBSJBWEQWviNregfj",
-      "version": "3",
-      "hash": "b7b0fe62430d37339e3e8c047f32c838",
-      "remote_hash": "24db0e1ddfafa254b48955df10448a75"
+      "version": "4",
+      "hash": "4338b4905ab8bdfe2ddb604c721800bf",
+      "remote_hash": "94d86bfe9bedb88a990eb481ede028e9"
     },
     "./agents/metrics.md": {
       "kind": "agent",
