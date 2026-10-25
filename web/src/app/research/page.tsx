@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
-import { sync, currentFiles } from "@/lib/sync";
+import { requireBrand } from "@/lib/brands";
+import { currentFiles } from "@/lib/sync";
+import { SubmitButton } from "@/components/SubmitButton";
+import { TabLinks } from "@/components/TabLinks";
 import { parseFile, topicsList, painTable, commentQuotes, competitorTable, topicNumber, weekNo, md, STATUS_LABEL } from "@/lib/parse";
 import { writeTopic } from "../actions";
 
@@ -13,10 +15,9 @@ const TABS = [
 ];
 
 export default async function Research({ searchParams }: { searchParams: Promise<{ tab?: string; week?: string }> }) {
-  await requireAuth();
+  const { id: sid } = await requireBrand();
   const { tab, week: wantWeek } = await searchParams;
-  await sync().catch(() => {});
-  const [research, drafts] = await Promise.all([currentFiles("research"), currentFiles("draft")]);
+  const [research, drafts] = await Promise.all([currentFiles(sid, "research"), currentFiles(sid, "draft")]);
   const weeks = [...new Set(research.map((r) => r.week).filter((w): w is string => !!w))].sort().reverse();
   const week = wantWeek && weeks.includes(wantWeek) ? wantWeek : weeks[0];
   const mine = research.filter((r) => r.week === week);
@@ -50,11 +51,7 @@ export default async function Research({ searchParams }: { searchParams: Promise
         <div className="card text-sm text-muted">Chưa có nghiên cứu. Chạy tuần mới để đội quét đối thủ và bình luận.</div>
       ) : (
         <>
-          <div role="tablist" aria-label="Loại nghiên cứu" className="tabs grid-cols-3">
-            {TABS.map((t) => (
-              <Link key={t.key} href={`/research?tab=${t.key}${week ? `&week=${week}` : ""}`} role="tab" aria-current={t === current ? "page" : undefined} className="tab">{t.label} · {counts[t.key]}</Link>
-            ))}
-          </div>
+          <TabLinks label="Loại nghiên cứu" current={current.key} tabs={TABS.map((t) => ({ key: t.key, label: `${t.label} · ${counts[t.key]}`, href: `/research?tab=${t.key}${week ? `&week=${week}` : ""}` }))} />
 
           {current.key === "chu-de" && topics && <Topics body={topics.body} week={week!} draftByTopic={draftByTopic} />}
           {current.key === "noi-dau" && comments && <Pains body={comments.body} />}
@@ -105,7 +102,7 @@ function Topics({ body, week, draftByTopic }: { body: string; week: string; draf
                   <form action={writeTopic}>
                     <input type="hidden" name="week" value={week} />
                     <input type="hidden" name="n" value={t.n} />
-                    <button className="chip h-[30px] border border-accent bg-card px-2.5 text-accent-deep">Viết bài này</button>
+                    <SubmitButton className="chip h-[30px] border border-accent bg-card px-2.5 text-accent-deep" pendingLabel="Đang gửi…" spinnerSize={14}>Viết bài này</SubmitButton>
                   </form>
                 )}
               </div>

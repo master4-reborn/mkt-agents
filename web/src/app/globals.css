@@ -80,3 +80,20 @@ button, input, textarea { font: inherit; }
 .placeholder { background: var(--color-warn-soft); color: var(--color-warn); border-radius: 6px; padding: 0 4px; font-weight: 600; }
 @keyframes pulse-dot { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }
 .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
+
+/* Waiting states: one spinner, one bone, one typing dot, all off under reduced motion. */
+@keyframes spin { to { transform: rotate(360deg) } }
+.spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
+@keyframes pulse-bone { 0%, 100% { opacity: 1 } 50% { opacity: 0.45 } }
+.bone { background: var(--color-line-soft); border-radius: 8px; animation: pulse-bone 1.4s ease-in-out infinite; }
+.bone-soft { background: #ffc9dc; }
+@keyframes bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+.bob { display: inline-block; animation: bob 1.6s ease-in-out infinite; }
+@keyframes typing { 0%, 80%, 100% { transform: translateY(0); opacity: 0.45 } 40% { transform: translateY(-4px); opacity: 1 } }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent-deep); animation: typing 1.2s ease-in-out infinite; }
+.dot:nth-child(2) { animation-delay: 0.15s; }
+.dot:nth-child(3) { animation-delay: 0.3s; }
+@media (prefers-reduced-motion: reduce) {
+  .pulse, .spin, .bone, .bob, .dot { animation: none; }
+  .bone { opacity: 0.7; }
+}

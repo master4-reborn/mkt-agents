@@ -1,42 +1,44 @@
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
-import { officeStatus, weekLabel } from "@/lib/office";
-import { sync, currentFiles, conversation, lastStopReason, teamState } from "@/lib/sync";
-import { weekNo, parseReport } from "@/lib/parse";
-import { userTasks, weekSteps, lastRun, hhmm, type Task, type Step } from "@/lib/home";
-import { Poller } from "@/components/Poller";
+import { requireBrand } from "@/lib/brands";
+import { knownStatus, weekLabel } from "@/lib/office";
+import { currentFiles, conversation, lastStopReason, teamState } from "@/lib/sync";
+import { weekNo, parseReport, parseFile, replyParts, fileRef } from "@/lib/parse";
+import { userTasks, weekSteps, lastRun, hhmm, elapsedMinutes, type Task, type Step } from "@/lib/home";
+import { StatusHeader } from "@/components/StatusHeader";
 import { CatAvatar, EMPLOYEE_NAME } from "@/components/CatAvatar";
-import { CopyButton } from "@/components/CopyButton";
+import { PostRow } from "@/components/PostRow";
+import { SubmitButton } from "@/components/SubmitButton";
 import { DesktopOnly } from "@/components/DesktopOnly";
 import { IconCheck, IconChevron, IconPlay } from "@/components/Icons";
 import OfficeScene from "@/components/OfficeScene";
-import { runWeek, markPosted } from "./actions";
+import { runWeek } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  await requireAuth();
-  await sync().catch(() => {});
+  const { id: sid } = await requireBrand();
   const week = weekLabel();
-  const [status, drafts, research, convo, stopReason, team, brand] = await Promise.all([
-    officeStatus(), currentFiles("draft"), currentFiles("research"), conversation(40), lastStopReason(), teamState(), currentFiles("brand"),
+  const [status, drafts, research, convo, stopReason, team, brand, reports, replyFiles] = await Promise.all([
+    knownStatus(sid), currentFiles(sid, "draft"), currentFiles(sid, "research"), conversation(sid, 40), lastStopReason(sid), teamState(sid), currentFiles(sid, "brand"), currentFiles(sid, "report"), currentFiles(sid, "reply"),
   ]);
-  const files = [...drafts, ...research].map((f) => ({ name: f.name, kind: f.kind as "draft" | "research", title: f.title, week: f.week }));
+  const files = [...drafts, ...research, ...reports, ...replyFiles].map(fileRef);
+  const replies = replyFiles.map((r) => { const p = parseFile(r.name, r.content); return { post: String(p.data.post ?? ""), status: r.status, reply: replyParts(p.body).reply }; });
   const waiting = drafts.filter((d) => d.status === "ready");
   const lastReport = [...convo].reverse().find((m) => m.role === "lead" && parseReport(m.text)) ?? null;
-  const tasks = userTasks(drafts, lastReport, files);
+  const tasks = userTasks(drafts, lastReport, files, reports, replies);
   const working = new Set(team.filter((t) => t.state === "working").map((t) => t.agent));
   const steps = weekSteps(week, drafts, research, working);
   const run = lastRun(convo);
   const running = status.status === "running";
   const brandReady = brand[0]?.status === "ready";
   const n = weekNo(week);
+  const minutes = elapsedMinutes(run, running);
 
   return (
     <div className="flex flex-col gap-5 lg:gap-6">
       <header className="flex items-center gap-2.5">
         <CatAvatar size={36} />
-        <Poller title="Đội AI" initial={{ ...status, stopReason }} week={n} />
+        <StatusHeader title="Đội AI" s={{ ...status, stopReason }} week={n} />
       </header>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
@@ -47,7 +49,7 @@ export default async function Home() {
         </DesktopOnly>
 
         <div className="flex min-w-0 flex-col gap-5">
-          <Hero waiting={waiting} running={running} brandReady={brandReady} finishedAt={run?.finishedAt ?? null} drafts={drafts.length} />
+          <Hero waiting={waiting} running={running} brandReady={brandReady} finishedAt={run?.finishedAt ?? null} drafts={drafts.length} steps={steps} minutes={minutes} />
 
           {tasks.length > 0 && (
             <section className="flex flex-col gap-2.5">
@@ -91,9 +93,9 @@ export default async function Home() {
           </section>
 
           <form action={runWeek} className="flex flex-col gap-2">
-            <button className="btn btn-outline w-full" disabled={running || !brandReady}>
-              <IconPlay /> Chạy tuần mới <span className="font-medium text-muted">· 10 phút · 2 đến 3 USD</span>
-            </button>
+            <SubmitButton className="btn btn-outline w-full" pendingLabel="Đang gửi lệnh…" disabled={running || !brandReady}>
+              {running ? `Đang chạy tuần ${n}, chờ xong mới chạy tiếp` : <><IconPlay /> Chạy tuần mới <span className="font-medium text-muted">· 10 phút · 2 đến 3 USD</span></>}
+            </SubmitButton>
           </form>
         </div>
       </div>
@@ -101,14 +103,14 @@ export default async function Home() {
   );
 }
 
-function Hero({ waiting, running, brandReady, finishedAt, drafts }: { waiting: { name: string; title: string }[]; running: boolean; brandReady: boolean; finishedAt: Date | null; drafts: number }) {
+function Hero({ waiting, running, brandReady, finishedAt, drafts, steps, minutes }: { waiting: { name: string; title: string }[]; running: boolean; brandReady: boolean; finishedAt: Date | null; drafts: number; steps: Step[]; minutes: number | null }) {
   if (!brandReady)
     return (
       <section className="flex flex-col gap-3 rounded-[20px] bg-accent-soft p-5">
         <div className="eyebrow text-accent-deep">Bắt đầu</div>
-        <div className="text-[26px] font-bold leading-tight">Cho đội biết bạn bán gì</div>
-        <div className="text-sm text-[#6b3d53]">Một câu là đủ: bán gì, cho ai, đăng kênh nào. Đội tự viết thẻ thương hiệu và hỏi lại bạn tối đa 3 câu.</div>
-        <Link href="/brand" className="btn btn-accent">Tạo thương hiệu</Link>
+        <div className="text-[26px] font-bold leading-tight">{running ? "Đội đang viết thẻ thương hiệu" : "Thẻ thương hiệu chưa xong"}</div>
+        <div className="text-sm text-[#6b3d53]">{running ? "Mất khoảng 3 phút. Trưởng nhóm sẽ hỏi lại bạn tối đa 3 câu trong trò chuyện." : "Trưởng nhóm đang chờ bạn trả lời vài câu về thương hiệu."}</div>
+        <Link href="/chat" className="btn btn-accent">Xem trưởng nhóm</Link>
       </section>
     );
   if (waiting.length > 0)
@@ -120,40 +122,59 @@ function Hero({ waiting, running, brandReady, finishedAt, drafts }: { waiting: {
         <Link href={`/drafts/${encodeURIComponent(waiting[0].name)}`} className="btn btn-accent">Duyệt ngay</Link>
       </section>
     );
-  if (running)
+  if (running) {
+    const current = steps.find((s) => s.state === "working");
+    const title = current?.label.startsWith("Nghiên cứu") ? "Đội đang nghiên cứu" : current?.label.startsWith("Viết") ? "Đội đang viết bài" : current?.label.startsWith("QA") ? "QA đang soát bài" : "Đội đang làm việc";
+    const done = steps.filter((s) => s.state === "done").length + (current ? 0.5 : 0);
     return (
-      <section className="flex flex-col gap-3 rounded-[20px] bg-accent-soft p-5">
+      <section aria-live="polite" className="flex flex-col gap-3 rounded-[20px] bg-accent-soft p-5">
         <div className="eyebrow text-accent-deep">Đang chạy</div>
-        <div className="text-[26px] font-bold leading-tight">Đội đang làm việc</div>
-        <div className="text-sm text-[#6b3d53]">Trang này tự cập nhật. Bạn có thể đóng và quay lại sau.</div>
+        <div className="text-[26px] font-bold leading-tight">{title}</div>
+        {minutes != null && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex justify-between text-[13px] text-[#6b3d53]"><span>Phút {minutes} / khoảng 10</span><span>tự cập nhật mỗi 8 giây</span></div>
+            <div className="h-2 overflow-hidden rounded-full bg-[#ffc9dc]"><div className="h-full rounded-full bg-accent" style={{ width: `${Math.round((done / steps.length) * 100)}%` }} /></div>
+          </div>
+        )}
+        <div className="text-sm text-[#6b3d53]">{minutes == null ? "Trưởng nhóm đang trả lời bạn. " : ""}Bạn đóng trang được, xong việc sẽ hiện ở đây.</div>
         <Link href="/chat" className="btn btn-dark">Xem trưởng nhóm đang nói gì</Link>
       </section>
     );
+  }
   return (
     <section className="flex flex-col gap-3 rounded-[20px] bg-accent-soft p-5">
       <div className="eyebrow text-accent-deep">Hôm nay</div>
       <div className="text-[26px] font-bold leading-tight">{drafts ? "Không còn bài nào chờ bạn" : "Chưa có bài nào"}</div>
       <div className="text-sm text-[#6b3d53]">{drafts ? "Việc của bạn ở dưới. Muốn thêm bài, chạy tuần mới." : "Chạy tuần mới để đội nghiên cứu và viết 3 đến 5 bài."}</div>
-      <form action={runWeek}><button className="btn btn-accent w-full"><IconPlay /> Chạy tuần mới</button></form>
+      <form action={runWeek}><SubmitButton className="btn btn-accent w-full" pendingLabel="Đang gửi lệnh…"><IconPlay /> Chạy tuần mới</SubmitButton></form>
     </section>
   );
 }
 
 function TaskRow({ task }: { task: Task }) {
   const circle = <span className="h-[22px] w-[22px] flex-none rounded-full border-2 border-accent" aria-hidden />;
-  if (task.kind === "post")
+  if (task.kind === "post") return <PostRow name={task.name} title={task.title} post={task.post} />;
+  if (task.kind === "reply")
     return (
-      <div className="flex items-center gap-3 border-b border-line-soft p-3.5 last:border-b-0">
-        <form action={markPosted} className="flex">
-          <input type="hidden" name="name" value={task.name} />
-          <button className="group flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-accent text-transparent hover:bg-accent hover:text-white" aria-label="Đánh dấu đã đăng" title="Đã đăng rồi"><IconCheck size={12} /></button>
-        </form>
+      <Link href={`/drafts/${encodeURIComponent(task.name)}#tra-loi`} className="flex items-center gap-3 border-b border-line-soft p-3.5 text-ink last:border-b-0">
+        {circle}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="truncate text-sm font-semibold">Đăng “{task.title}” lên Threads</div>
-          <div className="text-xs text-muted">Đã duyệt · bấm tròn khi đăng xong</div>
+          <div className="truncate text-sm font-semibold">Trả lời khách dưới “{task.title}”</div>
+          <div className="truncate text-xs text-muted">{task.reply}</div>
         </div>
-        <CopyButton text={task.post} />
-      </div>
+        <IconChevron className="text-faint" />
+      </Link>
+    );
+  if (task.kind === "metrics")
+    return (
+      <Link href={`/reports?week=${task.week}`} className="flex items-center gap-3 border-b border-line-soft p-3.5 text-ink last:border-b-0">
+        {circle}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="text-sm font-semibold">Gửi số liệu tuần {weekNo(task.week)}</div>
+          <div className="truncate text-xs text-muted">{task.posts} bài đã đăng · đội sẽ nói bài nào nên lặp lại</div>
+        </div>
+        <IconChevron className="text-faint" />
+      </Link>
     );
   if (task.kind === "fill")
     return (

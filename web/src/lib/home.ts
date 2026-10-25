@@ -6,10 +6,14 @@ type Msg = { role: string; text: string; createdAt: Date };
 export type Task =
   | { kind: "post"; name: string; title: string; post: string }
   | { kind: "fill"; name: string; title: string; what: string }
+  | { kind: "reply"; name: string; title: string; reply: string }
+  | { kind: "metrics"; week: string; posts: number }
   | { kind: "lead"; text: string };
 
+export type Reply = { post: string; status: string | null; reply: string };
+
 // What the boss has to do, in the order they should do it.
-export function userTasks(drafts: Draft[], lastReport: Msg | null, files: FileRef[]): Task[] {
+export function userTasks(drafts: Draft[], lastReport: Msg | null, files: FileRef[], reports: { week: string | null }[] = [], replies: Reply[] = []): Task[] {
   const tasks: Task[] = [];
   for (const d of drafts) {
     if (d.status !== "approved") continue;
@@ -21,6 +25,15 @@ export function userTasks(drafts: Draft[], lastReport: Msg | null, files: FileRe
     const { post } = splitDraft(parseFile(d.name, d.content).body);
     for (const p of placeholders(post)) tasks.push({ kind: "fill", name: d.name, title: d.title, what: p });
   }
+  for (const r of replies) {
+    const d = drafts.find((x) => x.name === r.post);
+    if (r.status === "ready" && d && r.reply) tasks.push({ kind: "reply", name: d.name, title: d.title, reply: r.reply });
+  }
+  // A week with posts out but no report yet: time to tell the team how they did.
+  const measured = new Set(reports.map((r) => r.week));
+  const byWeek = new Map<string, number>();
+  for (const d of drafts) if (d.status === "posted" && d.week && !measured.has(d.week)) byWeek.set(d.week, (byWeek.get(d.week) ?? 0) + 1);
+  for (const [week, posts] of [...byWeek].sort()) tasks.push({ kind: "metrics", week, posts });
   if (lastReport) {
     const r = parseReport(lastReport.text);
     const needs = r?.needs ?? "";
@@ -57,3 +70,9 @@ export function lastRun(msgs: Msg[]): { startedAt: Date; finishedAt: Date | null
 }
 
 export const hhmm = (d: Date) => d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+
+// Minutes since the current week run started, while the team is still on it. Null when nothing is running.
+export function elapsedMinutes(run: { startedAt: Date; finishedAt: Date | null } | null, running: boolean, now = new Date()): number | null {
+  if (!running || !run || run.finishedAt) return null;
+  return Math.max(1, Math.round((now.getTime() - run.startedAt.getTime()) / 60000));
+}

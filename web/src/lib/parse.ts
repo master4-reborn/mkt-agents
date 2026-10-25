@@ -1,9 +1,10 @@
 import matter from "gray-matter";
 
-export type Kind = "brand" | "research" | "draft" | "report" | "other";
+export type Kind = "brand" | "research" | "draft" | "report" | "reply" | "other";
 
 export function kindOf(name: string): Kind {
   if (name === "BRAND.md") return "brand";
+  if (/^reply-/.test(name)) return "reply";
   if (/^\d{4}-W\d{2}\.md$/.test(name)) return "report";
   if (/^\d{4}-W\d{2}-/.test(name)) return "research";
   if (/^\d{4}-\d{2}-\d{2}-/.test(name)) return "draft";
@@ -360,18 +361,32 @@ export function md(s: string): string {
     .trim();
 }
 
-export type FileRef = { name: string; kind: Kind; title: string; week: string | null };
+export type FileRef = { name: string; kind: Kind; title: string; week: string | null; post?: string | null };
+
+// What friendly() needs to know about a synced file. Replies also carry which post they answer.
+export function fileRef(f: { name: string; kind: string; title: string | null; week: string | null; content: string }): FileRef {
+  const post = f.kind === "reply" ? str(parseFile(f.name, f.content).data.post) : null;
+  return { name: f.name, kind: f.kind as Kind, title: f.title ?? f.name, week: f.week, post };
+}
+
+// A reply file: "## Bình luận" (the customer's words) and "## Trả lời" (what the team suggests you answer).
+export function replyParts(body: string): { comment: string; reply: string } {
+  const s = sections(body);
+  const pick = (re: RegExp) => s.find((x) => re.test(x.title))?.text.trim() ?? "";
+  return { comment: pick(/bình luận|comment/i), reply: pick(/trả lời|reply/i) || (s[0]?.text.trim() ?? "") };
+}
 
 // Replaces the file paths the team writes ("content/drafts/2026-10-24-x.md", "/mnt/session/outputs/...")
 // with the post's title as a link, so the boss never reads a path.
 export function friendly(text: string, files: FileRef[]): string {
   const byName = new Map(files.map((f) => [f.name, f]));
-  const path = /`?(?:\/mnt\/session\/outputs\/|\/workspace\/)?(?:[\w.-]+\/)*((?:\d{4}-\d{2}-\d{2}-[\w-]+|\d{4}-W\d{2}(?:-[\w-]+)?|BRAND)\.md)`?/g;
+  const path = /`?(?:\/mnt\/session\/outputs\/|\/workspace\/)?(?:[\w.-]+\/)*((?:\d{4}-\d{2}-\d{2}-[\w-]+|\d{4}-W\d{2}(?:-[\w-]+)?|reply-[\w-]+|BRAND)\.md)`?/g;
   let out = text.replace(path, (whole, name: string) => {
     const f = byName.get(name);
     if (name === "BRAND.md") return "[thẻ thương hiệu](/brand)";
     if (f?.kind === "draft") return `[“${f.title}”](/drafts/${encodeURIComponent(name)})`;
     if (f?.kind === "report") return `[báo cáo tuần ${weekNo(f.week)}](/reports/${encodeURIComponent(name)})`;
+    if (f?.kind === "reply") return f.post ? `[câu trả lời cho khách](/drafts/${encodeURIComponent(f.post)}#tra-loi)` : "câu trả lời cho khách";
     if (/^\d{4}-W\d{2}-/.test(name)) return `[nghiên cứu tuần ${weekNo(name.slice(0, 8))}](/research)`;
     if (f) return `[${f.title}](/drafts/${encodeURIComponent(name)})`;
     return whole.replace(/`/g, "");
@@ -382,4 +397,11 @@ export function friendly(text: string, files: FileRef[]): string {
 
 export function weekNo(week: string | null | undefined): string {
   return week?.match(/W(\d{2})/)?.[1]?.replace(/^0/, "") ?? "";
+}
+
+// The shop's name from BRAND.md, or null while the card is still a template.
+export function brandName(content: string): string | null {
+  const p = parseFile("BRAND.md", content);
+  const v = brandCard(p.body).find((s) => /^Shop/i.test(s.title))?.fields.find((f) => /tên/i.test(f.label))?.value.trim();
+  return v && !/^</.test(v) ? v : null;
 }

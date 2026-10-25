@@ -21,3 +21,5 @@ export const IconCopy = ({ size = 16, ...p }: P) => <svg {...base(size, p)}><rec
 export const IconSend = ({ size = 20, ...p }: P) => <svg {...base(size, { strokeWidth: 2.2, ...p })}><path d="M4 12h14" /><path d="M12 6l6 6-6 6" /></svg>;
 export const IconPlay = ({ size = 16, ...p }: P) => <svg {...base(size, { fill: "currentColor", stroke: "none", ...p })}><path d="M7 5l12 7-12 7z" /></svg>;
 export const IconRefresh = ({ size = 16, ...p }: P) => <svg {...base(size, p)}><path d="M20 12a8 8 0 1 1-2.3-5.6" /><path d="M20 4v5h-5" /></svg>;
+export const IconPlus = ({ size = 16, ...p }: P) => <svg {...base(size, p)}><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
+export const IconSpinner = ({ size = 18, ...p }: P) => <svg {...base(size, { strokeWidth: 2.5, ...p })}><path d="M12 3a9 9 0 1 1-6.4 2.6" /></svg>;

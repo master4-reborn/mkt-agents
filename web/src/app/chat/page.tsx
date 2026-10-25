@@ -1,26 +1,27 @@
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
-import { sync, conversation, currentFiles } from "@/lib/sync";
-import { officeStatus } from "@/lib/office";
-import { parseReport, friendly, weekNo, type FileRef } from "@/lib/parse";
+import { requireBrand } from "@/lib/brands";
+import { conversation, currentFiles } from "@/lib/sync";
+import { knownStatus } from "@/lib/office";
+import { parseReport, friendly, weekNo, fileRef, type FileRef } from "@/lib/parse";
 import { Markdown } from "@/components/Markdown";
 import { CatAvatar } from "@/components/CatAvatar";
-import { IconSend } from "@/components/Icons";
-import { sendMessage, runWeek } from "../actions";
+import { ChatComposer } from "@/components/ChatComposer";
+import { ScrollToEnd } from "@/components/ScrollToEnd";
 
 export const dynamic = "force-dynamic";
 
 type Msg = { id: string; role: string; text: string; createdAt: Date };
 
 export default async function Chat() {
-  await requireAuth();
-  await sync().catch(() => {});
-  const [all, files, status] = await Promise.all([conversation(80), currentFiles(), officeStatus()]);
-  const refs: FileRef[] = files.map((f) => ({ name: f.name, kind: f.kind as FileRef["kind"], title: f.title, week: f.week }));
+  const { id: sid } = await requireBrand();
+  const [all, files, status] = await Promise.all([conversation(sid, 80), currentFiles(sid), knownStatus(sid)]);
+  const refs: FileRef[] = files.map(fileRef);
   const titleOf = (name: string) => refs.find((r) => r.name === name)?.title ?? name;
   const msgs = all.filter((m) => m.role !== "status" && !isDebug(m));
   const waiting = files.filter((f) => f.kind === "draft" && f.status === "ready").length;
   const running = status.status === "running";
+  // The lead is on your last message: show it typing until the answer lands.
+  const replying = running && msgs[msgs.length - 1]?.role === "boss";
 
   return (
     <div className="flex flex-col gap-3.5 pb-[120px] lg:pb-0">
@@ -28,7 +29,7 @@ export default async function Chat() {
         <CatAvatar size={40} state={running ? "working" : "done"} />
         <div className="flex flex-col">
           <div className="text-[17px] font-bold">Trưởng nhóm</div>
-          <div className="text-xs text-muted">{running ? "đang làm việc · trang tự cập nhật" : "đang rảnh · trả lời trong vài phút"}</div>
+          <div className="text-xs text-muted">{replying ? "đang trả lời · trang tự cập nhật mỗi 8 giây" : running ? "đang làm việc · trang tự cập nhật mỗi 8 giây" : "đang rảnh · trả lời trong 10 đến 15 giây"}</div>
         </div>
       </div>
 
@@ -45,18 +46,18 @@ export default async function Chat() {
         );
       })}
 
-      <div className="fixed inset-x-0 bottom-[84px] z-20 flex flex-col gap-2.5 border-t border-line bg-card px-4 pb-3 pt-2.5 lg:static lg:rounded-[18px] lg:border lg:p-4">
-        <div className="flex gap-2 overflow-x-auto">
-          <form action={runWeek}><button className="chip h-9 flex-none border border-line bg-bg px-3 text-[13px] text-accent-deep" disabled={running}>Chạy tuần mới</button></form>
-          <Link href="/brand" className="chip h-9 flex-none border border-line bg-bg px-3 text-[13px] text-accent-deep">Đổi thương hiệu</Link>
-          <Link href="/drafts" className="chip h-9 flex-none border border-line bg-bg px-3 text-[13px] text-accent-deep">Bài chờ duyệt · {waiting}</Link>
+      {replying && (
+        <div aria-live="polite" className="flex flex-col gap-1.5 self-start">
+          <div className="flex items-center gap-2.5 rounded-[18px] rounded-bl-[4px] border border-line bg-card px-4 py-3.5">
+            <span className="inline-flex items-center gap-1" aria-hidden><span className="dot" /><span className="dot" /><span className="dot" /></span>
+            <span className="text-[13px] text-ink-soft">Trưởng nhóm đang trả lời…</span>
+          </div>
+          <div className="pl-1.5 text-[11px] text-muted">Thường 10 đến 15 giây. Bạn đóng trang cũng được, trả lời vẫn ở đây.</div>
         </div>
-        <form action={sendMessage} className="flex items-center gap-2">
-          <label htmlFor="msg" className="sr-only">Nhắn trưởng nhóm</label>
-          <input id="msg" name="text" className="input h-[46px] flex-1" placeholder="Nhắn trưởng nhóm, tiếng Việt là được" required autoComplete="off" />
-          <button aria-label="Gửi" className="flex h-[46px] w-[46px] flex-none items-center justify-center rounded-[14px] bg-accent text-white"><IconSend /></button>
-        </form>
-      </div>
+      )}
+
+      <ScrollToEnd count={msgs.length + (replying ? 1 : 0)} />
+      <ChatComposer waiting={waiting} running={running} />
     </div>
   );
 }

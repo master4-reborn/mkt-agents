@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAuth } from "@/lib/auth";
-import { sync, fileByName } from "@/lib/sync";
+import { requireBrand } from "@/lib/brands";
+import { fileByName } from "@/lib/sync";
 import { parseFile, weekNo } from "@/lib/parse";
 import { Markdown } from "@/components/Markdown";
 import { IconBack } from "@/components/Icons";
@@ -9,10 +9,9 @@ import { IconBack } from "@/components/Icons";
 export const dynamic = "force-dynamic";
 
 export default async function Report({ params }: { params: Promise<{ name: string }> }) {
-  await requireAuth();
+  const { id: sid } = await requireBrand();
   const { name } = await params;
-  await sync().catch(() => {});
-  const f = await fileByName(decodeURIComponent(name));
+  const f = await fileByName(sid, decodeURIComponent(name));
   if (!f || f.kind !== "report") notFound();
   const p = parseFile(f.name, f.content);
   return (

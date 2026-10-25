@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAuth } from "@/lib/auth";
-import { sync, fileByName, currentFiles } from "@/lib/sync";
-import { parseFile, splitDraft, postParts, placeholders, qaChecklist, bossNotes, sourceNotes, painPoint, commentQuotes, postLength, POST_LIMIT, QA_LABEL, STATUS_LABEL, weekNo, md } from "@/lib/parse";
+import { requireBrand } from "@/lib/brands";
+import { fileByName, currentFiles, conversation } from "@/lib/sync";
+import { knownStatus } from "@/lib/office";
+import { parseFile, splitDraft, postParts, placeholders, qaChecklist, bossNotes, sourceNotes, painPoint, commentQuotes, replyParts, postLength, POST_LIMIT, QA_LABEL, STATUS_LABEL, weekNo, md } from "@/lib/parse";
 import { CopyButton } from "@/components/CopyButton";
+import { SubmitButton, Dim } from "@/components/SubmitButton";
 import { IconBack, IconCheck, IconChevron, IconX } from "@/components/Icons";
-import { decide, markPosted } from "../../actions";
+import { decide, markPosted, draftReply } from "../../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function Draft({ params }: { params: Promise<{ name: string }> }) {
-  await requireAuth();
+  const { id: sid } = await requireBrand();
   const { name } = await params;
-  await sync().catch(() => {});
-  const f = await fileByName(decodeURIComponent(name));
+  const f = await fileByName(sid, decodeURIComponent(name));
   if (!f || f.kind !== "draft") notFound();
-  const [drafts, brandRows, research] = await Promise.all([currentFiles("draft"), currentFiles("brand"), currentFiles("research")]);
+  const [drafts, brandRows, research, replyFiles, convo, office] = await Promise.all([currentFiles(sid, "draft"), currentFiles(sid, "brand"), currentFiles(sid, "research"), currentFiles(sid, "reply"), conversation(sid, 4), knownStatus(sid)]);
   const p = parseFile(f.name, f.content);
   const { post } = splitDraft(p.body);
   const holes = placeholders(post);
@@ -35,6 +36,10 @@ export default async function Draft({ params }: { params: Promise<{ name: string
   const quotes = comments ? commentQuotes(parseFile(comments.name, comments.content).body).filter((q) => pain.codes.includes(q.code)) : [];
   const status = f.status ?? "";
   const canDecide = status === "ready";
+  const out = status === "approved" || status === "posted";
+  const replies = replyFiles.map((r) => ({ ...r, p: parseFile(r.name, r.content) })).filter((r) => String(r.p.data.post ?? "") === f.name).map((r) => ({ name: r.name, status: r.status, ...replyParts(r.p.body) }));
+  const lastBoss = [...convo].reverse().find((m) => m.role === "boss");
+  const drafting = office.status === "running" && !!lastBoss && lastBoss.text.startsWith(`Khách bình luận dưới bài ${f.name}:`);
 
   return (
     <div className="flex flex-col gap-3.5 pb-[150px] lg:pb-0">
@@ -117,6 +122,34 @@ export default async function Draft({ params }: { params: Promise<{ name: string
         </section>
       )}
 
+      {out && (
+        <section id="tra-loi" className="card flex flex-col gap-3">
+          <div className="eyebrow">Khách bình luận</div>
+          {replies.map((r) => (
+            <div key={r.name} className="flex flex-col gap-2 rounded-[14px] border border-line bg-bg p-3">
+              <blockquote className="m-0 text-[13px] leading-relaxed text-ink-soft">“{r.comment}”</blockquote>
+              <div className="flex items-start gap-2">
+                <span className={`chip flex-none ${r.status === "ready" ? "chip-ok" : "chip-warn"}`}>{r.status === "ready" ? "Sẵn sàng" : "Đang soạn"}</span>
+                <p className="min-w-0 flex-1 whitespace-pre-line text-sm leading-relaxed">{r.reply}</p>
+              </div>
+              {r.reply && <CopyButton text={r.reply} className="btn btn-xs btn-soft self-start" label="Sao chép trả lời" />}
+            </div>
+          ))}
+          {drafting && (
+            <div aria-live="polite" className="flex items-center gap-2 text-[13px] text-ink-soft">
+              <span className="inline-flex items-center gap-1" aria-hidden><span className="dot" /><span className="dot" /><span className="dot" /></span>
+              Đội đang soạn trả lời, khoảng 1 phút. Trang tự cập nhật.
+            </div>
+          )}
+          <form action={draftReply} className="flex flex-col gap-2">
+            <input type="hidden" name="name" value={f.name} />
+            <label htmlFor="comment" className="text-[13px] text-muted">Dán bình luận của khách, đội soạn câu trả lời đúng giọng. Bạn tự gửi, đội không gửi.</label>
+            <textarea id="comment" name="comment" rows={2} className="input" placeholder="Ví dụ: “giá bao nhiêu v shop”" required />
+            <SubmitButton className="btn btn-sm btn-dark" pendingLabel="Đang gửi…">Nhờ đội soạn trả lời</SubmitButton>
+          </form>
+        </section>
+      )}
+
       {f.decision && status !== "ready" && (
         <p className="text-center text-xs text-muted">
           Bạn đã {f.decision.decision === "approved" ? "duyệt" : f.decision.decision === "posted" ? "đăng" : "trả lại"} lúc {f.decision.createdAt.toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}{f.decision.note ? `: ${f.decision.note}` : ""}.
@@ -127,21 +160,19 @@ export default async function Draft({ params }: { params: Promise<{ name: string
         {canDecide ? (
           <>
             <input type="checkbox" id="reject" className="peer sr-only" />
-            <div className="grid grid-cols-[1fr_2fr] gap-2.5 peer-checked:hidden">
-              <label htmlFor="reject" className="btn btn-warn cursor-pointer select-none">Trả lại</label>
-              <form action={decide} className="contents">
-                <input type="hidden" name="name" value={f.name} />
-                <input type="hidden" name="decision" value="approved" />
-                <button className="btn btn-ok text-base"><IconCheck size={18} /> Duyệt bài này</button>
-              </form>
-            </div>
+            <form action={decide} className="grid grid-cols-[1fr_2fr] gap-2.5 peer-checked:hidden">
+              <input type="hidden" name="name" value={f.name} />
+              <input type="hidden" name="decision" value="approved" />
+              <Dim className="flex"><label htmlFor="reject" className="btn btn-warn w-full cursor-pointer select-none">Trả lại</label></Dim>
+              <SubmitButton className="btn btn-ok text-base" pendingLabel="Đang gửi…"><IconCheck size={18} /> Duyệt bài này</SubmitButton>
+            </form>
             <form action={decide} className="hidden flex-col gap-2 peer-checked:flex">
               <input type="hidden" name="name" value={f.name} />
               <input type="hidden" name="decision" value="rejected" />
               <input name="note" className="input" placeholder="Vì sao trả lại? Ví dụ: 2 túi mỗi bình 500ml, ủ 8 tiếng" required />
               <div className="grid grid-cols-[1fr_2fr] gap-2.5">
-                <label htmlFor="reject" className="btn btn-ghost cursor-pointer select-none">Thôi</label>
-                <button className="btn btn-warn">Gửi lại cho đội sửa</button>
+                <Dim className="flex"><label htmlFor="reject" className="btn btn-ghost w-full cursor-pointer select-none">Thôi</label></Dim>
+                <SubmitButton className="btn btn-warn" pendingLabel="Đang gửi lại…">Gửi lại cho đội sửa</SubmitButton>
               </div>
             </form>
             <div className="text-center text-xs text-muted">Sau khi duyệt, bạn tự đăng. Đội không có nút gửi.</div>
@@ -152,7 +183,7 @@ export default async function Draft({ params }: { params: Promise<{ name: string
               <CopyButton text={post} className="btn btn-soft" label="Sao chép bài" />
               <form action={markPosted} className="contents">
                 <input type="hidden" name="name" value={f.name} />
-                <button className="btn btn-ok"><IconCheck size={18} /> Đã đăng</button>
+                <SubmitButton className="btn btn-ok" pendingLabel="Đang ghi…"><IconCheck size={18} /> Đã đăng</SubmitButton>
               </form>
             </div>
             <div className="text-center text-xs text-muted">Dán lên {channel.charAt(0).toUpperCase() + channel.slice(1)}, rồi bấm Đã đăng.</div>

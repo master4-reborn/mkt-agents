@@ -1,18 +1,28 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { anthropic, BETAS } from "./anthropic";
 import { getDb, files, messages, settings, decisions, activity } from "./db";
 import { kindOf, parseFile } from "./parse";
-import { sessionId } from "./office";
 
-// Pulls what is new from the office: files the team wrote to /mnt/session/outputs/
+// Everything here is per brand: `sid` is the brand's office session.
+
+// Pulls what is new from one office: files the team wrote to /mnt/session/outputs/
 // and the conversation with the lead. Safe to call often; everything is keyed by id.
-export async function sync(): Promise<void> {
-  await Promise.all([syncFiles(), syncMessages()]);
+export async function sync(sid: string): Promise<void> {
+  await Promise.all([syncFiles(sid), syncMessages(sid)]);
+  const db = await getDb();
+  const value = new Date().toISOString();
+  await db.insert(settings).values({ key: `${sid}:synced_at`, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
 }
 
-async function syncFiles() {
+// First visit to a brand with nothing local yet: pull everything once, inline. After that the background poll keeps it fresh.
+export async function ensureSynced(sid: string): Promise<void> {
   const db = await getDb();
-  const sid = sessionId();
+  const row = await db.select().from(settings).where(eq(settings.key, `${sid}:synced_at`));
+  if (row.length === 0) await sync(sid);
+}
+
+async function syncFiles(sid: string) {
+  const db = await getDb();
   const listed = await anthropic().beta.files.list({ scope_id: sid, betas: BETAS } as any);
   const ids = listed.data.map((f) => f.id);
   if (ids.length === 0) return;
@@ -28,6 +38,7 @@ async function syncFiles() {
       .insert(files)
       .values({
         id: f.id,
+        brand: sid,
         name: f.filename,
         kind: kindOf(f.filename),
         week: p.week,
@@ -40,15 +51,15 @@ async function syncFiles() {
   }
 }
 
-const CURSOR_KEY = "events_cursor_v2";
 const EMPLOYEE = (agentName: string | undefined) => (agentName ?? "").replace(/^marketing-/, "") || "lead";
 
-async function syncMessages() {
+async function syncMessages(sid: string) {
   const db = await getDb();
-  const sid = sessionId();
+  const CURSOR_KEY = `${sid}:events_cursor_v2`;
+  const THREADS_KEY = `${sid}:threads`;
   const cursorRow = await db.select().from(settings).where(eq(settings.key, CURSOR_KEY));
   let page: string | undefined = cursorRow[0]?.value || undefined;
-  const threadRow = await db.select().from(settings).where(eq(settings.key, "threads"));
+  const threadRow = await db.select().from(settings).where(eq(settings.key, THREADS_KEY));
   const threads: Record<string, string> = threadRow[0] ? JSON.parse(threadRow[0].value) : {};
   for (let guard = 0; guard < 20; guard++) {
     const res: any = await anthropic().beta.sessions.events.list(sid, { limit: 1000, ...(page ? { page } : {}) } as any);
@@ -58,19 +69,19 @@ async function syncMessages() {
       if (e.type === "session.thread_created") {
         threads[e.session_thread_id] = e.agent_name;
       } else if (e.type === "session.thread_status_running" || e.type === "session.thread_status_idle") {
-        acts.push({ id: e.id, agent: EMPLOYEE(e.agent_name ?? threads[e.session_thread_id]), kind: e.type.endsWith("running") ? "running" : "idle", text: e.stop_reason?.type ?? "", createdAt: when(e) });
+        acts.push({ id: e.id, brand: sid, agent: EMPLOYEE(e.agent_name ?? threads[e.session_thread_id]), kind: e.type.endsWith("running") ? "running" : "idle", text: e.stop_reason?.type ?? "", createdAt: when(e) });
       } else if (e.type === "agent.thread_message_sent") {
-        acts.push({ id: e.id, agent: EMPLOYEE(e.to_agent_name ?? threads[e.to_session_thread_id]), kind: "task", text: textOf(e.content), createdAt: when(e) });
+        acts.push({ id: e.id, brand: sid, agent: EMPLOYEE(e.to_agent_name ?? threads[e.to_session_thread_id]), kind: "task", text: textOf(e.content), createdAt: when(e) });
       } else if (e.type === "agent.thread_message_received") {
-        acts.push({ id: e.id, agent: EMPLOYEE(e.from_agent_name ?? threads[e.from_session_thread_id]), kind: "report", text: textOf(e.content), createdAt: when(e) });
+        acts.push({ id: e.id, brand: sid, agent: EMPLOYEE(e.from_agent_name ?? threads[e.from_session_thread_id]), kind: "report", text: textOf(e.content), createdAt: when(e) });
       } else if (e.type === "agent.message") {
         const text = (e.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
-        if (text.trim()) rows.push({ id: e.id, role: "lead", text, createdAt: when(e) });
+        if (text.trim()) rows.push({ id: e.id, brand: sid, role: "lead", text, createdAt: when(e) });
       } else if (e.type === "user.message") {
         const text = (e.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
-        if (text.trim()) rows.push({ id: e.id, role: "boss", text, createdAt: when(e) });
+        if (text.trim()) rows.push({ id: e.id, brand: sid, role: "boss", text, createdAt: when(e) });
       } else if (e.type === "session.status_idle") {
-        rows.push({ id: e.id, role: "status", text: "idle", stopReason: e.stop_reason?.type ?? null, createdAt: when(e) });
+        rows.push({ id: e.id, brand: sid, role: "status", text: "idle", stopReason: e.stop_reason?.type ?? null, createdAt: when(e) });
       }
     }
     if (rows.length) await db.insert(messages).values(rows).onConflictDoNothing();
@@ -82,7 +93,7 @@ async function syncMessages() {
     page = res.next_page;
   }
   const tj = JSON.stringify(threads);
-  await db.insert(settings).values({ key: "threads", value: tj }).onConflictDoUpdate({ target: settings.key, set: { value: tj } });
+  await db.insert(settings).values({ key: THREADS_KEY, value: tj }).onConflictDoUpdate({ target: settings.key, set: { value: tj } });
 }
 
 function textOf(content: any): string {
@@ -100,10 +111,10 @@ export type EmployeeState = {
   since: Date | null;
 };
 
-export async function teamState(): Promise<EmployeeState[]> {
+export async function teamState(sid: string): Promise<EmployeeState[]> {
   const db = await getDb();
-  const acts = await db.select().from(activity).orderBy(desc(activity.createdAt)).limit(600);
-  const msgs = await db.select().from(messages).orderBy(desc(messages.createdAt)).limit(40);
+  const acts = await db.select().from(activity).where(eq(activity.brand, sid)).orderBy(desc(activity.createdAt)).limit(600);
+  const msgs = await db.select().from(messages).where(eq(messages.brand, sid)).orderBy(desc(messages.createdAt)).limit(40);
   return TEAM.map((agent) => {
     const mine = acts.filter((a) => a.agent === agent);
     const status = mine.find((a) => a.kind === "running" || a.kind === "idle");
@@ -124,15 +135,15 @@ function when(e: any): Date {
   return new Date(e.processed_at ?? e.created_at ?? Date.now());
 }
 
-// Current version of every file, newest first, with the boss's latest decision applied.
-export async function currentFiles(kind?: string) {
+// Current version of every file of one brand, newest first, with the boss's latest decision applied.
+export async function currentFiles(sid: string, kind?: string) {
   const db = await getDb();
-  const all = await db.select().from(files).orderBy(desc(files.createdAt));
+  const all = await db.select().from(files).where(eq(files.brand, sid)).orderBy(desc(files.createdAt));
   const seen = new Set<string>();
   const latest = all.filter((f) => (kind && f.kind !== kind) || seen.has(f.name) ? false : (seen.add(f.name), true));
   const names = latest.map((f) => f.name);
   const decs = names.length
-    ? await db.select().from(decisions).where(inArray(decisions.fileName, names)).orderBy(desc(decisions.createdAt))
+    ? await db.select().from(decisions).where(and(eq(decisions.brand, sid), inArray(decisions.fileName, names))).orderBy(desc(decisions.createdAt))
     : [];
   return latest.map((f) => {
     const d = decs.find((x) => x.fileName === f.name);
@@ -144,22 +155,22 @@ export async function currentFiles(kind?: string) {
   });
 }
 
-export async function fileByName(name: string) {
-  return (await currentFiles()).find((f) => f.name === name) ?? null;
+export async function fileByName(sid: string, name: string) {
+  return (await currentFiles(sid)).find((f) => f.name === name) ?? null;
 }
 
-export async function conversation(limit = 40) {
+export async function conversation(sid: string, limit = 40) {
   const db = await getDb();
-  const rows = await db.select().from(messages).orderBy(desc(messages.createdAt)).limit(limit);
+  const rows = await db.select().from(messages).where(eq(messages.brand, sid)).orderBy(desc(messages.createdAt)).limit(limit);
   return rows.reverse();
 }
 
-export async function lastStopReason(): Promise<string | null> {
+export async function lastStopReason(sid: string): Promise<string | null> {
   const db = await getDb();
   const r = await db
     .select({ stopReason: messages.stopReason })
     .from(messages)
-    .where(eq(messages.role, "status"))
+    .where(and(eq(messages.brand, sid), eq(messages.role, "status")))
     .orderBy(desc(messages.createdAt))
     .limit(1);
   return r[0]?.stopReason ?? null;

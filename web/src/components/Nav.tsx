@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { CatAvatar } from "./CatAvatar";
 import { IconBars, IconChat, IconCube, IconFile, IconHome, IconSearch, IconStar } from "./Icons";
 
@@ -22,9 +23,16 @@ function active(pathname: string, href: string) {
 }
 
 // Phone: four tabs along the bottom. Desktop: a sidebar with everything.
-// Hidden on the login page and under a draft's own action bar.
+// The tapped tab lights up at once, before its page arrives. Hidden on the login page and under a draft's own action bar.
 export function Nav({ waiting, footer }: { waiting: number; footer: string }) {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [seen, setSeen] = useState(pathname);
+  if (seen !== pathname) {
+    setSeen(pathname);
+    setPendingHref(null);
+  }
+  const isOn = (href: string) => (pendingHref ? href === pendingHref : active(pathname, href));
   if (pathname === "/login") return null;
   const underActionBar = /^\/drafts\/.+/.test(pathname);
   return (
@@ -32,9 +40,9 @@ export function Nav({ waiting, footer }: { waiting: number; footer: string }) {
       {!underActionBar && (
         <nav aria-label="Điều hướng" className="fixed inset-x-0 bottom-0 z-30 grid h-[84px] grid-cols-4 gap-1 border-t border-line bg-card px-2 pb-[22px] pt-[10px] lg:hidden" style={{ paddingBottom: "max(22px, env(safe-area-inset-bottom))" }}>
           {TABS.map(({ href, label, Icon }) => {
-            const on = active(pathname, href);
+            const on = isOn(href);
             return (
-              <Link key={href} href={href} aria-current={on ? "page" : undefined} className={`flex flex-col items-center gap-1 text-[11px] font-semibold ${on ? "text-accent" : "text-muted"}`}>
+              <Link key={href} href={href} aria-current={on ? "page" : undefined} onClick={() => setPendingHref(href)} className={`flex flex-col items-center gap-1 text-[11px] font-semibold ${on ? "text-accent" : "text-muted"}`}>
                 <span className="relative">
                   <Icon />
                   {href === "/drafts" && waiting > 0 && <span className="absolute -right-2 -top-1.5 rounded-full bg-accent px-1.5 text-[10px] font-bold text-white">{waiting}</span>}
@@ -50,9 +58,9 @@ export function Nav({ waiting, footer }: { waiting: number; footer: string }) {
           <CatAvatar size={34} /> Đội AI
         </Link>
         {[...TABS, ...MORE].map(({ href, label, Icon }) => {
-          const on = active(pathname, href);
+          const on = isOn(href);
           return (
-            <Link key={href} href={href} aria-current={on ? "page" : undefined} className={`flex h-[42px] items-center gap-2.5 rounded-xl px-3 text-sm font-semibold ${on ? "bg-accent-soft text-accent-deep" : "text-ink-soft hover:bg-bg"}`}>
+            <Link key={href} href={href} aria-current={on ? "page" : undefined} onClick={() => setPendingHref(href)} className={`flex h-[42px] items-center gap-2.5 rounded-xl px-3 text-sm font-semibold ${on ? "bg-accent-soft text-accent-deep" : "text-ink-soft hover:bg-bg"}`}>
               <Icon size={18} /> {label}
               {href === "/drafts" && waiting > 0 && <span className="ml-auto rounded-full bg-accent px-2 text-xs text-white">{waiting}</span>}
             </Link>

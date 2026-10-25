@@ -1,4 +1,5 @@
 import { CatAvatar } from "@/components/CatAvatar";
+import { SubmitButton } from "@/components/SubmitButton";
 import { loginAction } from "../actions";
 
 export default async function Login({ searchParams }: { searchParams: Promise<{ bad?: string }> }) {
@@ -14,7 +15,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
       </div>
       {bad && <p className="text-sm text-bad">Sai mật khẩu.</p>}
       <input name="password" type="password" className="input" placeholder="Mật khẩu" autoFocus />
-      <button className="btn btn-accent w-full">Vào văn phòng</button>
+      <SubmitButton className="btn btn-accent w-full" pendingLabel="Đang vào…">Vào văn phòng</SubmitButton>
     </form>
   );
 }

@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { requireAuth } from "@/lib/auth";
-import { sync, currentFiles } from "@/lib/sync";
+import { requireBrand } from "@/lib/brands";
+import { currentFiles } from "@/lib/sync";
 import { weekLabel } from "@/lib/office";
 import { parseFile, splitDraft, placeholders, qaChecklist, painPoint, postLength, POST_LIMIT, weekNo, STATUS_LABEL } from "@/lib/parse";
 import { CopyButton } from "@/components/CopyButton";
+import { SubmitButton } from "@/components/SubmitButton";
+import { TabLinks } from "@/components/TabLinks";
 import { decide } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +17,9 @@ const TABS: { key: string; label: string; statuses: string[] }[] = [
 ];
 
 export default async function Drafts({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  await requireAuth();
+  const { id: sid } = await requireBrand();
   const { tab } = await searchParams;
-  await sync().catch(() => {});
-  const drafts = await currentFiles("draft");
+  const drafts = await currentFiles(sid, "draft");
   const count = (t: (typeof TABS)[number]) => drafts.filter((d) => t.statuses.includes(d.status ?? "")).length;
   const current = TABS.find((t) => t.key === tab) ?? (count(TABS[0]) === 0 && count(TABS[1]) > 0 ? TABS[1] : TABS[0]);
   const rows = drafts.filter((d) => current.statuses.includes(d.status ?? ""));
@@ -32,13 +33,7 @@ export default async function Drafts({ searchParams }: { searchParams: Promise<{
         <div className="text-xs text-muted">tuần {weekNo(weekLabel())} · {cap(channel)}</div>
       </div>
 
-      <div role="tablist" aria-label="Trạng thái" className="tabs grid-cols-3">
-        {TABS.map((t) => (
-          <Link key={t.key} href={`/drafts?tab=${t.key}`} role="tab" aria-current={t === current ? "page" : undefined} className="tab">
-            {t.label} · {count(t)}
-          </Link>
-        ))}
-      </div>
+      <TabLinks label="Trạng thái" current={current.key} tabs={TABS.map((t) => ({ key: t.key, label: `${t.label} · ${count(t)}`, href: `/drafts?tab=${t.key}` }))} />
 
       {rows.length === 0 && (
         <div className="card text-sm text-muted">
@@ -96,7 +91,7 @@ function DraftCard({ d, index, tabKey }: { d: { name: string; title: string; sta
             <form action={decide} className="contents">
               <input type="hidden" name="name" value={d.name} />
               <input type="hidden" name="decision" value="approved" />
-              <button className="btn btn-sm btn-ok">Duyệt</button>
+              <SubmitButton className="btn btn-sm btn-ok" pendingLabel="Đang gửi…">Duyệt</SubmitButton>
             </form>
           )
         ) : d.status === "approved" || d.status === "posted" ? (
