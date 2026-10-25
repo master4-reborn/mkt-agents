@@ -58,6 +58,8 @@ The team reads the internet by default. From the Thương hiệu page the boss c
    - `DATABASE_URL`: Supabase
 4. Deploy. Open the URL on your phone, log in, add a brand or approve a draft.
 
+`next.config.ts` turns Turbopack's persistent build cache off: on Vercel it once reused the previous commit's stylesheet, so a CSS change did not reach production.
+
 The production build has been checked against a real Postgres 17 (`next build` then `next start` with `DATABASE_URL`): the schema is created on first request, and an existing session is migrated into the first brand.
 
 ## Pages
