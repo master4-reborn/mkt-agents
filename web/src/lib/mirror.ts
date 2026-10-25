@@ -115,6 +115,13 @@ async function pushGmail(sid: string): Promise<void> {
   await markConnection("gmail", true);
 }
 
+// For the home page's week steps: the files of one brand already copied to one storage.
+export async function savedFileIds(sid: string, target = "notion"): Promise<Set<string>> {
+  const db = await getDb();
+  const rows = await db.select({ fileId: mirrors.fileId }).from(mirrors).where(and(eq(mirrors.brand, sid), eq(mirrors.target, target), eq(mirrors.status, "ok")));
+  return new Set(rows.map((r) => r.fileId));
+}
+
 // For the page: the last saves of one brand to one storage, newest first.
 export async function recentMirrors(sid: string, limit = 5, target = "notion") {
   const db = await getDb();

@@ -72,6 +72,7 @@ alter table brands add column if not exists notion_read text;
 alter table brands add column if not exists notion_save text;
 alter table brands add column if not exists gmail_label text;
 alter table brands add column if not exists gmail_copy text;
+alter table brands add column if not exists drive_read text;
 create table if not exists connections (
   kind text primary key,
   secret text not null,

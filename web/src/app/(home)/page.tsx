@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireBrand } from "@/lib/brands";
 import { knownStatus, weekLabel } from "@/lib/office";
-import { currentFiles, conversation, lastStopReason, teamState } from "@/lib/sync";
+import { currentFiles, conversation, handoffs, lastStopReason, teamState } from "@/lib/sync";
 import { weekNo, parseReport, parseFile, replyParts, fileRef } from "@/lib/parse";
 import { userTasks, weekSteps, lastRun, hhmm, elapsedMinutes, type Task, type Step } from "@/lib/home";
 import { StatusHeader } from "@/components/StatusHeader";
@@ -15,14 +15,17 @@ import { IslandWindow } from "@/components/IslandWindow";
 import { readMail, runWeek } from "../actions";
 import { connection } from "@/lib/connections";
 import { mailNews } from "@/lib/mailbox";
+import { savedFileIds } from "@/lib/mirror";
+import { brandNotion } from "@/lib/connections";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const { id: sid } = await requireBrand();
+  const me = await requireBrand();
+  const sid = me.id;
   const week = weekLabel();
-  const [status, drafts, research, convo, stopReason, team, brand, reports, replyFiles] = await Promise.all([
-    knownStatus(sid), currentFiles(sid, "draft"), currentFiles(sid, "research"), conversation(sid, 40), lastStopReason(sid), teamState(sid), currentFiles(sid, "brand"), currentFiles(sid, "report"), currentFiles(sid, "reply"),
+  const [status, drafts, research, convo, stopReason, team, brand, reports, replyFiles, moves, saved] = await Promise.all([
+    knownStatus(sid), currentFiles(sid, "draft"), currentFiles(sid, "research"), conversation(sid, 40), lastStopReason(sid), teamState(sid), currentFiles(sid, "brand"), currentFiles(sid, "report"), currentFiles(sid, "reply"), handoffs(sid), savedFileIds(sid, "notion"),
   ]);
   const files = [...drafts, ...research, ...reports, ...replyFiles].map(fileRef);
   const replies = replyFiles.map((r) => { const p = parseFile(r.name, r.content); return { post: String(p.data.post ?? ""), status: r.status, reply: replyParts(p.body).reply }; });
@@ -36,7 +39,7 @@ export default async function Home() {
     ...userTasks(drafts, lastReport, files, reports, replies),
   ];
   const working = new Set(team.filter((t) => t.state === "working").map((t) => t.agent));
-  const steps = weekSteps(week, drafts, research, working);
+  const steps = weekSteps(week, drafts, research, working, brandNotion(me).save ? saved : null);
   const run = lastRun(convo);
   const running = status.status === "running";
   const brandReady = brand[0]?.status === "ready";
@@ -53,7 +56,7 @@ export default async function Home() {
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
         <DesktopOnly>
           <section aria-label="Văn phòng 3D" className="hidden min-w-0 lg:sticky lg:top-4 lg:block lg:h-[calc(100vh-176px)] lg:min-h-[520px]">
-            <OfficeScene compact team={team.map((t) => ({ ...t, since: t.since ? t.since.toISOString() : null }))} waiting={waiting.length} week={week} />
+            <OfficeScene compact team={team.map((t) => ({ ...t, since: t.since ? t.since.toISOString() : null }))} handoffs={moves} waiting={waiting.length} week={week} running={running} />
           </section>
         </DesktopOnly>
 

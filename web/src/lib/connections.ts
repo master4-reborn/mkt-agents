@@ -87,6 +87,17 @@ export async function setBrandGmail(sid: string, patch: { label?: string | null;
   await db.update(brands).set(set).where(eq(brands.id, sid));
 }
 
+export type DriveRead = { id: string; name: string; url: string };
+
+export function brandDrive(b: { driveRead: string | null }): DriveRead | null {
+  try { return b.driveRead ? (JSON.parse(b.driveRead) as DriveRead) : null; } catch { return null; }
+}
+
+export async function setBrandDrive(sid: string, read: DriveRead | null): Promise<void> {
+  const db = await getDb();
+  await db.update(brands).set({ driveRead: read ? JSON.stringify(read) : null }).where(eq(brands.id, sid));
+}
+
 // ---- the endpoint and its bearer
 
 export const MCP_NAME = "nguon";

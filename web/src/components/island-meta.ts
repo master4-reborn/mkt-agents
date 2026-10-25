@@ -13,6 +13,9 @@ export type Worker = Exclude<Agent, "lead">;
 export const ORDER: Worker[] = ["research", "writer", "qa", "metrics"];
 export const INK = "#7a2b4c";
 
+// One real handoff from the activity log: the lead gave a worker a task, or got a report back. `agent` is the worker.
+export type Handoff = { at: string; agent: string; kind: "task" | "report"; text: string };
+
 export const META: Record<Agent, { name: string; fur: string; roof: string; tools: string; job: string; demoTask: string }> = {
   lead: { name: "Điều phối", fur: "#fff1e6", roof: "#ff6fa3", tools: "Giao việc, đọc, ghi", job: "Nhận lệnh của bạn, chia việc, giữ cổng duyệt, báo cáo ba dòng", demoTask: "" },
   research: { name: "Nghiên cứu", fur: "#cdb8ff", roof: "#a98bff", tools: "Tìm web, đọc web, bash", job: "Quét đối thủ và bình luận, bảng nỗi đau, 5 chủ đề", demoTask: "quét đối thủ và bình luận tuần này" },

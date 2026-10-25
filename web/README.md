@@ -38,7 +38,8 @@ The team reads the internet by default. From the Thương hiệu page the boss c
 - An office gets the endpoint through `sessions.update` (only while idle; a busy office is marked pending and the poll retries) or at birth (`agent_with_overrides`). The lead's own tools are read from the agent and sent back with the MCP toolset, because the update replaces the whole list.
 - Per brand, the boss chooses one Notion database to read ("Đọc") and one page to save under ("Lưu vào"). The app creates three databases under that page (Bài đã duyệt, Báo cáo tuần, Thẻ thương hiệu; columns Tên, Thương hiệu, Tuần, Ngày, Trạng thái, Tệp) and, from the poll, saves each approved post, weekly report and ready brand card once (`mirrors` table, `src/lib/mirror.ts`). The agents never write outside the office.
 - Gmail (`src/lib/gmail.ts`, `imapflow` + `nodemailer`): the boss pastes their address and a Google app password; the app checks it with one IMAP login and remembers the labels. Per brand, one label the team reads (tools `gmail_search`, `gmail_read`; reading marks the mail read) and a switch, off by default, that mails each approved post once from the boss's address to the same address (`mirrors` rows with target `gmail`). The poll caches the unread count under the brand's label at most every five minutes (`src/lib/mailbox.ts`); the home page shows it as a task whose button sends the lead "Đọc thư mới…".
-- `agents/lead.md` has a "Nguồn ngoài" section telling the lead when to read Notion and Gmail; apply it with `ant apply agents` so new offices get it.
+- Drive (`src/lib/drive.ts`, no library: a signed JWT swapped for a one-hour token): the boss pastes a service account's JSON key and shares folders with the account's address; the app checks the key with one list call. Per brand, one folder the team reads (tools `drive_list`, `drive_read`: Docs, Sheets and Slides are exported as text, plain files downloaded). Read only by design: service accounts have no Drive storage of their own.
+- `agents/lead.md` has a "Nguồn ngoài" section telling the lead when to read Notion, Gmail and Drive; apply it with `ant apply agents` so new offices get it.
 
 ## Deploy (Vercel + Supabase, Singapore)
 
@@ -73,6 +74,7 @@ The production build has been checked against a real Postgres 17 (`next build` t
 | `/brand`, `/brand/new` | The current card, edits by sentence; the Monday schedule on/off; sources and storage; what the team learned (per brand and for all brands), reopen a stopped office; open an office for another brand |
 | `/brand/notion` | Connect Notion with a pasted secret; per brand, the database the team reads and the page the app saves under; last saves |
 | `/brand/gmail` | Connect Gmail with an app password; per brand, the label the team reads and the copy-by-mail switch; last mails sent |
+| `/brand/drive` | Connect Drive with a service account key; per brand, the shared folder the team reads |
 | `/office` | The 3D island, full screen: order the lead from the composer, tap a cat for its card and a private order (sent as "Chuyển cho <role>: …"), tap a building to open its page; on a phone, Hôm nay has a window card into it |
 | `/chat` | The conversation with the lead; send any order |
 | `/api/status` | Polled by the page: syncs new files and messages, returns status and cost |

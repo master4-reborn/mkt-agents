@@ -8,7 +8,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { ContactShadows, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { Cat, Castle, House, NatureTree, Piece, preloadOffice } from "./OfficeModels";
 import { AgentCard, Composer, Toast } from "./Island";
-import { DOOR, META, ORDER, STATE_COLOR, firstLines, type Agent, type MapEmployee, type Worker } from "./island-meta";
+import { DOOR, META, ORDER, STATE_COLOR, firstLines, type Agent, type Handoff, type MapEmployee, type Worker } from "./island-meta";
 
 export type { MapEmployee };
 type Mode = "idle" | "work" | "walk";
@@ -246,32 +246,37 @@ function NamePill({ name, state, selected, onClick }: { name: string; state: Map
   );
 }
 
-/* ---------- demo timeline ---------- */
+/* ---------- handoff playback ---------- */
 
-const STEP = { out: 2.6, work: 3.2, back: 2.6 } as const;
-const STEP_TOTAL = STEP.out + STEP.work + STEP.back;
+// The lead acts out the team's real handoffs: walks to the worker, hands over the task (or collects the report),
+// walks back. "replay" plays a finished run from the start; "live" plays each handoff as it lands while the team works.
+const STEP = { out: 2.2, pause: 2.4, back: 2.2 } as const;
+const STEP_TOTAL = STEP.out + STEP.pause + STEP.back;
+type Step = { agent: Worker; kind: "task" | "report"; text: string };
+type Overrides = Partial<Record<Worker, MapEmployee["state"]>>;
+type View = { leadPos: [number, number, number]; leadRot: number; leadMode: Mode | null; states: Overrides; leadLine: string | null; workerLine: { agent: Worker; text: string } | null };
+type Player = { mode: "replay" | "live" | null; steps: Step[]; idx: number; startAt: number; states: Overrides };
 
-type Demo = { leadPos: [number, number, number]; leadRot: number; leadMode: Mode; states: Record<Exclude<Agent, "lead">, MapEmployee["state"]>; leadLine: string | null };
+const ease = (p: number) => p * p * (3 - 2 * p);
+const toSteps = (hs: Handoff[]): Step[] => hs.flatMap((h) => (ORDER.includes(h.agent as Worker) ? [{ agent: h.agent as Worker, kind: h.kind, text: h.text }] : []));
+const afterStep = (states: Overrides, s: Step): Overrides => ({ ...states, [s.agent]: s.kind === "task" ? "working" : "done" });
+const viewKey = (v: View) => JSON.stringify([v.leadMode, v.leadLine, v.workerLine, v.states]);
 
-function demoAt(t: number): Demo {
-  const i = Math.floor(t / STEP_TOTAL) % ORDER.length;
-  const local = t % STEP_TOTAL;
-  const agent = ORDER[i];
-  const [sx, , sz] = onRing(agent, STOP_R - 1.5);
-  const start: [number, number, number] = [Math.cos(ANGLE[agent]) * 3.4, 0, Math.sin(ANGLE[agent]) * 3.4];
-  const states = Object.fromEntries(ORDER.map((a, j) => [a, j < i ? "done" : "waiting"])) as Demo["states"];
-  const ease = (p: number) => p * p * (3 - 2 * p);
+// The lead leaves from the castle edge nearest the worker, so it never walks through the castle.
+function stepView(s: Step, local: number, states: Overrides): View {
+  const name = META[s.agent].name;
+  const [sx, , sz] = onRing(s.agent, STOP_R - 1.5);
+  const edge: [number, number, number] = [Math.cos(ANGLE[s.agent]) * 3.4, 0, Math.sin(ANGLE[s.agent]) * 3.4];
+  const line = s.kind === "task" ? `${name} ơi: ${firstLines(s.text, 1, 60) || "lấy việc đi"}` : `${name} xong chưa?`;
+  const report = s.kind === "report" ? { agent: s.agent, text: firstLines(s.text, 1, 72) || "Xong rồi sếp!" } : null;
   if (local < STEP.out) {
     const p = ease(local / STEP.out);
-    return { leadPos: [start[0] + (sx - start[0]) * p, 0, start[2] + (sz - start[2]) * p], leadRot: Math.atan2(sx - start[0], sz - start[2]), leadMode: "walk", states, leadLine: `${META[agent].name} ơi, lấy task đi!` };
+    return { leadPos: [edge[0] + (sx - edge[0]) * p, 0, edge[2] + (sz - edge[2]) * p], leadRot: Math.atan2(sx - edge[0], sz - edge[2]), leadMode: "walk", states, leadLine: line, workerLine: null };
   }
-  if (local < STEP.out + STEP.work) {
-    states[agent] = "working";
-    return { leadPos: [sx, 0, sz], leadRot: Math.atan2(sx, sz), leadMode: "idle", states, leadLine: `${META[agent].name} ơi, lấy task đi!` };
-  }
-  const p = ease((local - STEP.out - STEP.work) / STEP.back);
-  states[agent] = "done";
-  return { leadPos: [sx + (start[0] - sx) * p, 0, sz + (start[2] - sz) * p], leadRot: Math.atan2(start[0] - sx, start[2] - sz), leadMode: "walk", states, leadLine: null };
+  const after = afterStep(states, s);
+  if (local < STEP.out + STEP.pause) return { leadPos: [sx, 0, sz], leadRot: Math.atan2(sx, sz), leadMode: "idle", states: after, leadLine: s.kind === "task" ? line : `Nhận bài của ${name}`, workerLine: report };
+  const p = ease((local - STEP.out - STEP.pause) / STEP.back);
+  return { leadPos: [sx + (edge[0] - sx) * p, 0, sz + (edge[2] - sz) * p], leadRot: Math.atan2(edge[0] - sx, edge[2] - sz), leadMode: "walk", states: after, leadLine: null, workerLine: report };
 }
 
 /* ---------- scene ---------- */
@@ -300,8 +305,8 @@ function Train() {
   );
 }
 
-function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, onOpen, setHover, resetKey, nodes, anchors }: {
-  team: MapEmployee[]; demo: boolean; demoView: Demo | null; setDemoView: (d: Demo | null) => void; autoRotate: boolean; sel: Agent; setSel: (a: Agent) => void; onOpen: (a: Agent) => void; setHover: (a: Agent | null) => void; resetKey: number; nodes: Nodes; anchors: Anchor[];
+function Scene({ team, playerRef, view, setView, autoRotate, sel, setSel, onOpen, setHover, resetKey, nodes, anchors }: {
+  team: MapEmployee[]; playerRef: React.RefObject<Player>; view: View | null; setView: (v: View | null) => void; autoRotate: boolean; sel: Agent; setSel: (a: Agent) => void; onOpen: (a: Agent) => void; setHover: (a: Agent | null) => void; resetKey: number; nodes: Nodes; anchors: Anchor[];
 }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   // A building is a door to a page; a cat opens its card.
@@ -316,38 +321,44 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, onO
     onPointerOut: () => { document.body.style.cursor = ""; },
   });
   const leadRef = useRef<THREE.Group>(null);
-  const demoStart = useRef(0);
   const leadPos = useRef<[number, number, number]>([LEAD_HOME[0], 2.1, LEAD_HOME[2]]);
 
   useEffect(() => {
     controls.current?.reset();
   }, [resetKey]);
-  useEffect(() => {
-    if (!demo) demoStart.current = 0;
-  }, [demo]);
 
+  // Advances the playback each frame; React state changes only when a bubble or a worker's state changes.
   useFrame(({ clock }) => {
-    if (!demo) {
-      if (demoView) setDemoView(null);
+    const place = (pos: [number, number, number], rot: number) => {
       if (leadRef.current) {
-        leadRef.current.position.set(...LEAD_HOME);
-        leadRef.current.rotation.y = 0;
+        leadRef.current.position.set(...pos);
+        leadRef.current.rotation.y = rot;
       }
-      leadPos.current = [LEAD_HOME[0], 2.1, LEAD_HOME[2]];
+      leadPos.current = [pos[0], 2.1, pos[2]];
+    };
+    const s = playerRef.current.mode ? playerRef.current.steps[playerRef.current.idx] : undefined;
+    if (!s) {
+      playerRef.current.mode = null;
+      place(LEAD_HOME, 0);
+      if (view) setView(null);
       return;
     }
-    if (!demoStart.current) demoStart.current = clock.getElapsedTime();
-    const d = demoAt(clock.getElapsedTime() - demoStart.current);
-    if (leadRef.current) {
-      leadRef.current.position.set(...d.leadPos);
-      leadRef.current.rotation.y = d.leadRot;
+    const now = clock.getElapsedTime();
+    if (!playerRef.current.startAt) playerRef.current.startAt = now;
+    const local = now - playerRef.current.startAt;
+    if (local >= STEP_TOTAL) {
+      playerRef.current.states = afterStep(playerRef.current.states, s);
+      playerRef.current.idx += 1;
+      playerRef.current.startAt = 0;
+      return;
     }
-    leadPos.current = [d.leadPos[0], 2.1, d.leadPos[2]];
-    if (!demoView || demoView.leadMode !== d.leadMode || demoView.leadLine !== d.leadLine || ORDER.some((a) => demoView.states[a] !== d.states[a])) setDemoView(d);
+    const v = stepView(s, local, playerRef.current.states);
+    place(v.leadPos, v.leadRot);
+    if (!view || viewKey(view) !== viewKey(v)) setView(v);
   });
 
   const byAgent = Object.fromEntries(team.map((t) => [t.agent, t])) as Record<Agent, MapEmployee>;
-  const leadMode: Mode = demo && demoView ? demoView.leadMode : byAgent.lead.state === "working" ? "work" : "idle";
+  const leadMode: Mode = view?.leadMode ?? (byAgent.lead.state === "working" ? "work" : "idle");
 
   return (
     <>
@@ -374,7 +385,7 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, onO
         </group>
         {ORDER.map((agent) => {
           const e = byAgent[agent];
-          const state = demo && demoView ? demoView.states[agent] : e.state;
+          const state = view?.states[agent] ?? e.state;
           const a = ANGLE[agent];
           const house = onRing(agent, HOUSE_R);
           const prop: [number, number, number] = [Math.cos(a + 0.28) * (HOUSE_R - 0.6), 0, Math.sin(a + 0.28) * (HOUSE_R - 0.6)];
@@ -418,7 +429,7 @@ const WIDE = "(min-width: 1024px)";
 // compact: just the scene, filling its parent (the desktop home page). full: the whole window under the app's nav,
 // with the composer, the employee card and the toast floating over the island (the Văn phòng page).
 // Otherwise a boxed scene with the card beside it.
-export default function Office3D({ team, waiting, week, running = false, compact = false, full = false }: { team: MapEmployee[]; waiting: number; week: string; running?: boolean; compact?: boolean; full?: boolean }) {
+export default function Office3D({ team, handoffs = [], waiting, week, running = false, compact = false, full = false }: { team: MapEmployee[]; handoffs?: Handoff[]; waiting: number; week: string; running?: boolean; compact?: boolean; full?: boolean }) {
   const router = useRouter();
   const [sel, setSelState] = useState<Agent>(team.find((t) => t.state === "working" && t.agent !== "lead")?.agent ?? "lead");
   // The card: always there on a wide screen, a sheet you open by tapping a cat on a phone.
@@ -427,8 +438,26 @@ export default function Office3D({ team, waiting, week, running = false, compact
   const [hover, setHover] = useState<Agent | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
   const [bubbles, setBubbles] = useState(true);
-  const [demo, setDemo] = useState(false);
-  const [demoView, setDemoView] = useState<Demo | null>(null);
+  // Playback: what the lead is acting out right now (null when standing home), driven by the player ref in the scene.
+  const player = useRef<Player>({ mode: null, steps: [], idx: 0, startAt: 0, states: {} });
+  const [view, setView] = useState<View | null>(null);
+  const replay = () => {
+    player.current = { mode: "replay", steps: toSteps(handoffs), idx: 0, startAt: 0, states: Object.fromEntries(ORDER.map((a) => [a, "waiting"])) };
+  };
+  const stopPlay = () => {
+    player.current.mode = null;
+  };
+  // Handoffs that land after the page opened (each poll re-renders with the log) are acted out as they come.
+  const seenAt = useRef(handoffs[handoffs.length - 1]?.at ?? "");
+  useEffect(() => {
+    const fresh = handoffs.filter((h) => h.at > seenAt.current);
+    if (fresh.length === 0) return;
+    seenAt.current = fresh[fresh.length - 1].at;
+    const p = player.current;
+    if (p.mode === "replay") return;
+    if (p.mode === "live") p.steps = [...p.steps, ...toSteps(fresh)];
+    else player.current = { mode: "live", steps: toSteps(fresh), idx: 0, startAt: 0, states: {} };
+  }, [handoffs]);
   const [resetKey, setResetKey] = useState(0);
   const [toastOn, setToastOn] = useState(false);
   const [toastN, setToastN] = useState(0);
@@ -462,8 +491,8 @@ export default function Office3D({ team, waiting, week, running = false, compact
   const open = (a: Agent) => router.push(DOOR[a].href);
 
   const byAgent = Object.fromEntries(team.map((t) => [t.agent, t])) as Record<Agent, MapEmployee>;
-  const stateOf = (a: Agent): MapEmployee["state"] => (a !== "lead" && demo && demoView ? demoView.states[a] : byAgent[a].state);
-  const leadLine = demo && demoView ? demoView.leadLine : null;
+  const stateOf = (a: Agent): MapEmployee["state"] => (a !== "lead" ? view?.states[a] : undefined) ?? byAgent[a].state;
+  const leadLine = view?.leadLine ?? null;
   const lead = byAgent.lead;
   // On the island page the lead's bubble is its latest reply, and a toast says when a new one lands while you watch.
   const leadReply = full && lead.state !== "working" && !leadLine ? firstLines(lead.report) : "";
@@ -494,7 +523,7 @@ export default function Office3D({ team, waiting, week, running = false, compact
         style={{ background: "linear-gradient(180deg,#ffe4ef 0%,#fff3f8 55%,#ffe9f2 100%)" }}
       >
         <Canvas dpr={[1, 1.75]} gl={{ alpha: true, antialias: true, toneMapping: THREE.NoToneMapping }} className="!absolute inset-0">
-          <Scene team={team} demo={demo} demoView={demoView} setDemoView={setDemoView} autoRotate={autoRotate} sel={sel} setSel={setSel} onOpen={open} setHover={setHover} resetKey={resetKey} nodes={nodes} anchors={anchors} />
+          <Scene team={team} playerRef={player} view={view} setView={setView} autoRotate={autoRotate} sel={sel} setSel={setSel} onOpen={open} setHover={setHover} resetKey={resetKey} nodes={nodes} anchors={anchors} />
         </Canvas>
         {/* projected labels */}
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
@@ -502,7 +531,8 @@ export default function Office3D({ team, waiting, week, running = false, compact
             const st = stateOf(a);
             const shown: MapEmployee = { ...byAgent[a], state: st };
             const reply = a === "lead" ? leadReply : "";
-            const text = a === "lead" && leadLine ? leadLine : reply || bubbleText(shown, waiting, week);
+            const said = a === "lead" ? leadLine : view?.workerLine?.agent === a ? view.workerLine.text : null;
+            const text = said || reply || bubbleText(shown, waiting, week);
             return (
               <div key={a}>
                 {bubbles && (
@@ -526,7 +556,11 @@ export default function Office3D({ team, waiting, week, running = false, compact
           <button className={pill(!autoRotate)} onClick={() => setAutoRotate((v) => !v)}>{autoRotate ? "Dừng xoay" : "Xoay"}</button>
           <button className={pill(bubbles)} onClick={() => setBubbles((v) => !v)}>Bong bóng</button>
           <button className={pill(false)} onClick={() => setResetKey((k) => k + 1)}>Toàn cảnh</button>
-          <button className={pill(demo)} onClick={() => setDemo((v) => !v)}>{demo ? "Dừng demo" : "Tự chạy ▶"}</button>
+          {running ? (
+            <span className={`${chip} inline-flex items-center gap-1.5`}><span className="pulse inline-block h-1.5 w-1.5 rounded-full bg-[#cf3d7a]" />Trực tiếp</span>
+          ) : handoffs.length > 0 ? (
+            <button className={pill(!!view)} onClick={() => (view ? stopPlay() : replay())}>{view ? "Dừng" : "Xem lại ▶"}</button>
+          ) : null}
           <span className="ml-auto flex items-center gap-1.5">
             <span className={`${chip} hidden md:inline`}>5 nhân viên</span>
             <Link href="/drafts" className="rounded-full bg-[#7a2b4c] px-3 py-1 text-[12px] font-semibold text-white">Cổng duyệt · {waiting} bài</Link>

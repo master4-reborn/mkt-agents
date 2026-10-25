@@ -3,6 +3,7 @@ import { anthropic, BETAS } from "./anthropic";
 import { getDb, files, messages, settings, decisions, activity, brands, memories } from "./db";
 import { memoryStoreId } from "./office";
 import { kindOf, parseFile } from "./parse";
+import type { Handoff } from "@/components/island-meta";
 
 // Everything here is per brand: `sid` is the brand's office session.
 
@@ -148,6 +149,19 @@ export async function teamState(sid: string): Promise<EmployeeState[]> {
       since: status?.createdAt ?? null,
     };
   });
+}
+
+// The lead's real handoffs, oldest first: each task it gave a worker and each report it got back, for the island to act out.
+export type { Handoff };
+
+export async function handoffs(sid: string, limit = 24): Promise<Handoff[]> {
+  const db = await getDb();
+  const rows = await db.select().from(activity).where(and(eq(activity.brand, sid), inArray(activity.kind, ["task", "report"]))).orderBy(desc(activity.createdAt)).limit(limit * 2);
+  return rows
+    .filter((r) => r.agent !== "lead")
+    .slice(0, limit)
+    .reverse()
+    .map((r) => ({ at: r.createdAt.toISOString(), agent: r.agent, kind: r.kind as Handoff["kind"], text: r.text }));
 }
 
 function when(e: any): Date {

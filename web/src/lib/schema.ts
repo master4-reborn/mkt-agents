@@ -11,6 +11,7 @@ export const brands = pgTable("brands", {
   notionSave: text("notion_save"), // JSON: the Notion page the app saves this brand's copies under, or null
   gmailLabel: text("gmail_label"), // the Gmail label the team reads for this brand, or null
   gmailCopy: text("gmail_copy"), // "1" = the app mails a copy of each approved post to the boss's own address
+  driveRead: text("drive_read"), // JSON: the Drive folder the team reads for this brand, or null
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

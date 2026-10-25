@@ -48,7 +48,8 @@ export function userTasks(drafts: Draft[], lastReport: Msg | null, files: FileRe
 export type Step = { label: string; state: "done" | "working" | "todo" | "partial"; detail?: string };
 
 // The four steps of a week, read from the files the team delivered and who is working now.
-export function weekSteps(week: string, drafts: Draft[], research: { week: string | null }[], working: Set<string>): Step[] {
+// `saved`: ids of the files already copied to Notion, or null when this brand has no Notion page to save under.
+export function weekSteps(week: string, drafts: (Draft & { id?: string })[], research: { week: string | null }[], working: Set<string>, saved: Set<string> | null = null): Step[] {
   const mine = drafts.filter((d) => d.week === week);
   const hasResearch = research.some((r) => r.week === week);
   const checked = mine.filter((d) => ["ready", "approved", "posted", "needs-fix", "rejected"].includes(d.status ?? ""));
@@ -59,7 +60,15 @@ export function weekSteps(week: string, drafts: Draft[], research: { week: strin
     { label: mine.length ? `Viết ${mine.length} bài` : "Viết bài", state: working.has("writer") ? "working" : mine.length ? "done" : "todo" },
     { label: "QA soát", state: working.has("qa") ? "working" : checked.length === 0 ? "todo" : passed.length === mine.length ? "done" : "partial", detail: checked.length ? `${passed.length}/${mine.length}` : undefined },
     { label: "Bạn duyệt", state: mine.length === 0 ? "todo" : decided.length === mine.length ? "done" : "partial", detail: mine.length ? `${decided.length}/${mine.length}` : undefined },
+    ...(saved ? [notionStep(mine, saved)] : []),
   ];
+}
+
+// Approved posts of the week that reached Notion; the poll saves them, so "partial" clears by itself.
+function notionStep(mine: (Draft & { id?: string })[], saved: Set<string>): Step {
+  const approved = mine.filter((d) => ["approved", "posted"].includes(d.status ?? ""));
+  const done = approved.filter((d) => d.id && saved.has(d.id));
+  return { label: "Lưu Notion", state: approved.length === 0 ? "todo" : done.length === approved.length ? "done" : "partial", detail: approved.length ? `${done.length}/${approved.length}` : undefined };
 }
 
 // When the last week run started and ended, from the conversation.

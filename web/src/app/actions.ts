@@ -8,7 +8,8 @@ import { requireAuth, login } from "@/lib/auth";
 import { sync, currentFiles, fileByName } from "@/lib/sync";
 import { allBrands, createBrand, reopenBrand, requireBrand, setCurrentBrand, setSchedule } from "@/lib/brands";
 import { addLine, removeLine, bossLine, BRAND_FILES, SEP_FILES } from "@/lib/memory";
-import { attach, attachAll, connectionSecret, disconnect, saveConnection, setBrandGmail, setBrandNotion, updateMeta, type NotionRead } from "@/lib/connections";
+import { attach, attachAll, connectionSecret, disconnect, saveConnection, setBrandDrive, setBrandGmail, setBrandNotion, updateMeta, type NotionRead } from "@/lib/connections";
+import { driveCheck, driveGet, driveId, isFolder, parseDriveKey, DriveError } from "@/lib/drive";
 import { gmailCheckLabel, gmailLabels } from "@/lib/gmail";
 import { mailNews, refreshMail } from "@/lib/mailbox";
 import { getDatabase, getDataSource, getPage, notionId, notionMe } from "@/lib/notion";
@@ -357,6 +358,51 @@ export async function readMail() {
   await order(b.id, `Đọc thư mới trong nhãn «${news.label}» của Gmail: dùng gmail_search với unseen, đọc từng thư bằng gmail_read, tóm tắt mỗi thư trong 2 dòng và liệt kê việc sếp cần làm. Không trả lời thư, không gửi gì.`);
   await refreshMail(b.id, 0).catch(() => {});
   redirect("/chat");
+}
+
+// ---- Drive: a service account's JSON key. Read only; the boss shares folders with the account's address.
+
+export async function connectDrive(formData: FormData) {
+  await requireAuth();
+  let key;
+  try {
+    key = parseDriveKey(String(formData.get("secret") ?? ""));
+  } catch {
+    redirect("/brand/drive?loi=khoa");
+  }
+  const err = await driveCheck(key).then(() => null, (e: unknown) => e);
+  if (err) redirect(err instanceof DriveError && err.status === 403 ? "/brand/drive?loi=api" : "/brand/drive?loi=khoa");
+  await saveConnection("drive", JSON.stringify(key), key.client_email);
+  await updateMeta("drive", (m) => ({ ...m, project: key.project_id ?? null }));
+  await attachAll().catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/brand/drive");
+}
+
+export async function disconnectDrive() {
+  await requireAuth();
+  await disconnect("drive");
+  revalidatePath("/", "layout");
+  redirect("/brand#nguon");
+}
+
+// The folder the team reads for this brand, from its link, checked to be a folder the account can see.
+export async function setDriveRead(formData: FormData) {
+  const b = await requireBrand();
+  if (formData.get("clear")) {
+    await setBrandDrive(b.id, null);
+    revalidatePath("/", "layout");
+    redirect("/brand/drive");
+  }
+  const secret = await connectionSecret("drive");
+  const link = String(formData.get("link") ?? "").trim();
+  const id = driveId(link);
+  if (!secret || !id) redirect("/brand/drive?loi=thumuc");
+  const f = await driveGet(parseDriveKey(secret), id).catch(() => null);
+  if (!f || !isFolder(f)) redirect("/brand/drive?loi=thumuc");
+  await setBrandDrive(b.id, { id: f.id, name: f.name, url: f.url });
+  revalidatePath("/", "layout");
+  redirect("/brand/drive");
 }
 
 // One more try at giving this office the endpoint, after an error.
