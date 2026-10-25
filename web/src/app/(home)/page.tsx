@@ -12,8 +12,9 @@ import { DesktopOnly } from "@/components/DesktopOnly";
 import { IconCheck, IconChevron, IconPlay } from "@/components/Icons";
 import OfficeScene from "@/components/OfficeScene";
 import { IslandWindow } from "@/components/IslandWindow";
-import { runWeek } from "../actions";
+import { readMail, runWeek } from "../actions";
 import { connection } from "@/lib/connections";
+import { mailNews } from "@/lib/mailbox";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,11 @@ export default async function Home() {
   const replies = replyFiles.map((r) => { const p = parseFile(r.name, r.content); return { post: String(p.data.post ?? ""), status: r.status, reply: replyParts(p.body).reply }; });
   const waiting = drafts.filter((d) => d.status === "ready");
   const lastReport = [...convo].reverse().find((m) => m.role === "lead" && parseReport(m.text)) ?? null;
-  const notion = await connection("notion");
+  const [notion, gmail, news] = await Promise.all([connection("notion"), connection("gmail"), mailNews(sid)]);
   const tasks: Task[] = [
     ...(notion?.status === "error" ? [{ kind: "key" as const, what: "Notion", error: notion.error ?? "lỗi", href: "/brand/notion" }] : []),
+    ...(gmail?.status === "error" ? [{ kind: "key" as const, what: "Gmail", error: gmail.error ?? "lỗi", href: "/brand/gmail" }] : []),
+    ...(gmail && gmail.status === "ok" && news && news.n > 0 ? [{ kind: "mail" as const, n: news.n, label: news.label }] : []),
     ...userTasks(drafts, lastReport, files, reports, replies),
   ];
   const working = new Set(team.filter((t) => t.state === "working").map((t) => t.agent));
@@ -171,6 +174,17 @@ function TaskRow({ task }: { task: Task }) {
         </div>
         <span className="chip chip-bad flex-none">Dán lại khoá</span>
       </Link>
+    );
+  if (task.kind === "mail")
+    return (
+      <form action={readMail} className="flex items-center gap-3 border-b border-line-soft p-3.5 last:border-b-0">
+        {circle}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="text-sm font-semibold">{task.n} thư mới trong nhãn «{task.label}»</div>
+          <div className="truncate text-xs text-muted">Đội đọc và tóm tắt trong trò chuyện, không trả lời thư</div>
+        </div>
+        <SubmitButton className="chip chip-accent flex-none" pendingLabel="Đang gửi lệnh…" spinnerSize={12}>Đọc thư</SubmitButton>
+      </form>
     );
   if (task.kind === "reply")
     return (

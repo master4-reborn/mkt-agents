@@ -9,7 +9,7 @@ import { brandName } from "./parse";
 import { markAttached, mcpAgent } from "./connections";
 
 // A brand is an office of its own: one Managed Agents session with the same team.
-export type Brand = { id: string; sentence: string; memoryStoreId: string | null; slug: string | null; schedule: string | null; notionRead: string | null; notionSave: string | null; createdAt: Date };
+export type Brand = { id: string; sentence: string; memoryStoreId: string | null; slug: string | null; schedule: string | null; notionRead: string | null; notionSave: string | null; gmailLabel: string | null; gmailCopy: string | null; createdAt: Date };
 
 const COOKIE = "office_brand";
 

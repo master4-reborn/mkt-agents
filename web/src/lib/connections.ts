@@ -75,6 +75,18 @@ export async function setBrandNotion(sid: string, patch: { read?: NotionRead | n
   await db.update(brands).set(set).where(eq(brands.id, sid));
 }
 
+export function brandGmail(b: { gmailLabel: string | null; gmailCopy: string | null }): { label: string | null; copy: boolean } {
+  return { label: b.gmailLabel || null, copy: b.gmailCopy === "1" };
+}
+
+export async function setBrandGmail(sid: string, patch: { label?: string | null; copy?: boolean }): Promise<void> {
+  const db = await getDb();
+  const set: Record<string, string | null> = {};
+  if ("label" in patch) set.gmailLabel = patch.label || null;
+  if ("copy" in patch) set.gmailCopy = patch.copy ? "1" : null;
+  await db.update(brands).set(set).where(eq(brands.id, sid));
+}
+
 // ---- the endpoint and its bearer
 
 export const MCP_NAME = "nguon";

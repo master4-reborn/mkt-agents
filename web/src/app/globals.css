@@ -23,7 +23,8 @@
   --font-sans: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
 }
 
-html, body { overflow-x: hidden; }
+/* clip, not hidden: hidden makes body a scroll container, which stops every position: sticky element (the chat composer) from sticking */
+html, body { overflow-x: clip; }
 body { background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); overflow-wrap: anywhere; -webkit-tap-highlight-color: transparent; }
 main { min-width: 0; }
 button, input, textarea { font: inherit; }

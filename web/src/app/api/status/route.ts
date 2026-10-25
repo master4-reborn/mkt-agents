@@ -5,6 +5,7 @@ import { sync, lastStopReason } from "@/lib/sync";
 import { allBrands, currentBrand } from "@/lib/brands";
 import { retryPending } from "@/lib/connections";
 import { pushMirrors } from "@/lib/mirror";
+import { refreshMail } from "@/lib/mailbox";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function GET() {
     }),
   ]);
   // Phase 5: copies of new deliveries go to the boss's Notion, and an office whose team was busy gets the endpoint now.
-  await Promise.all([pushMirrors(b.id).catch(() => {}), retryPending().catch(() => {})]);
+  await Promise.all([pushMirrors(b.id).catch(() => {}), retryPending().catch(() => {}), refreshMail(b.id).catch(() => {})]);
   const s = await officeStatus(b.id);
   return NextResponse.json({ ...s, stopReason: await lastStopReason(b.id) });
 }

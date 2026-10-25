@@ -9,6 +9,8 @@ export const brands = pgTable("brands", {
   schedule: text("schedule"), // "mon" = the cron sends "Chạy tuần mới" every Monday morning; null = the boss runs weeks by hand
   notionRead: text("notion_read"), // JSON: the Notion database the team reads for this brand, or null
   notionSave: text("notion_save"), // JSON: the Notion page the app saves this brand's copies under, or null
+  gmailLabel: text("gmail_label"), // the Gmail label the team reads for this brand, or null
+  gmailCopy: text("gmail_copy"), // "1" = the app mails a copy of each approved post to the boss's own address
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

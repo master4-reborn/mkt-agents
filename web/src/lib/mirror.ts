@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { getDb, brands, mirrors } from "./db";
-import { brandNotion, connection, connectionSecret, markConnection, updateMeta } from "./connections";
+import { brandGmail, brandNotion, connection, connectionSecret, markConnection, updateMeta } from "./connections";
 import { createDatabase, createRow, NotionError } from "./notion";
+import { GmailError, gmailSendSelf, parseKey } from "./gmail";
 import { currentFiles } from "./sync";
 import { parseFile, brandName, splitDraft, weekNo } from "./parse";
 import { shortSentence } from "./brands";
@@ -29,13 +30,19 @@ export async function ensureDatabases(secret: string, pageId: string): Promise<D
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300);
 
-async function record(sid: string, fileId: string, status: "ok" | "error", externalId: string | null, url: string | null, error: string | null) {
+async function record(sid: string, fileId: string, status: "ok" | "error", externalId: string | null, url: string | null, error: string | null, target = "notion") {
   const db = await getDb();
-  await db.insert(mirrors).values({ brand: sid, fileId, target: "notion", externalId, url, status, error }).onConflictDoUpdate({ target: [mirrors.fileId, mirrors.target], set: { brand: sid, externalId, url, status, error, createdAt: new Date() } });
+  await db.insert(mirrors).values({ brand: sid, fileId, target, externalId, url, status, error }).onConflictDoUpdate({ target: [mirrors.fileId, mirrors.target], set: { brand: sid, externalId, url, status, error, createdAt: new Date() } });
+}
+
+// Copies of one brand's new deliveries to every storage the boss set up for it.
+export async function pushMirrors(sid: string): Promise<void> {
+  await pushNotion(sid);
+  await pushGmail(sid).catch(() => {});
 }
 
 // Everything of one brand not yet in Notion. Cheap when there is nothing new: a few local reads, no Notion call.
-export async function pushMirrors(sid: string): Promise<void> {
+async function pushNotion(sid: string): Promise<void> {
   if (!(await connection("notion"))) return;
   const db = await getDb();
   const [b] = await db.select().from(brands).where(eq(brands.id, sid));
@@ -79,9 +86,38 @@ export async function pushMirrors(sid: string): Promise<void> {
   await markConnection("notion", true);
 }
 
-// For the page: the last saves of one brand, newest first.
-export async function recentMirrors(sid: string, limit = 5) {
+// Each approved post once, as a mail from the boss's address to the same address, when the brand's switch is on.
+async function pushGmail(sid: string): Promise<void> {
+  const gmail = await connection("gmail");
+  if (!gmail || gmail.status === "error") return;
   const db = await getDb();
-  const rows = await db.select().from(mirrors).where(and(eq(mirrors.brand, sid), eq(mirrors.target, "notion")));
+  const [b] = await db.select().from(brands).where(eq(brands.id, sid));
+  if (!b || !brandGmail(b).copy) return;
+  const [drafts, cards] = await Promise.all([currentFiles(sid, "draft"), currentFiles(sid, "brand")]);
+  const done = new Set((await db.select({ fileId: mirrors.fileId }).from(mirrors).where(and(eq(mirrors.brand, sid), eq(mirrors.target, "gmail"), eq(mirrors.status, "ok")))).map((r) => r.fileId));
+  const jobs = drafts.filter((f) => ["approved", "posted"].includes(f.status ?? "") && !done.has(f.id));
+  if (jobs.length === 0) return;
+  const secret = await connectionSecret("gmail");
+  if (!secret) return;
+  const key = parseKey(secret);
+  const name = (cards[0] && brandName(cards[0].content)) || shortSentence(b.sentence);
+  for (const f of jobs) {
+    const { post, rest } = splitDraft(parseFile(f.name, f.content).body);
+    const text = `${post}\n\n${rest ? `---\n\n${rest}\n\n` : ""}---\nBản sao do Đội AI gửi sau khi bạn duyệt · ${name}${f.week ? ` · Tuần ${weekNo(f.week)}` : ""}`;
+    try {
+      const r = await gmailSendSelf(key, { subject: `[Đội AI · ${name}] ${f.title || f.name}`, text });
+      await record(sid, f.id, "ok", r.messageId, null, null, "gmail");
+    } catch (e) {
+      await record(sid, f.id, "error", null, null, msg(e), "gmail");
+      if (e instanceof GmailError && e.kind === "auth") { await markConnection("gmail", false, "Gmail từ chối mật khẩu ứng dụng, dán lại"); return; }
+    }
+  }
+  await markConnection("gmail", true);
+}
+
+// For the page: the last saves of one brand to one storage, newest first.
+export async function recentMirrors(sid: string, limit = 5, target = "notion") {
+  const db = await getDb();
+  const rows = await db.select().from(mirrors).where(and(eq(mirrors.brand, sid), eq(mirrors.target, target)));
   return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
 }

@@ -8,7 +8,9 @@ import { requireAuth, login } from "@/lib/auth";
 import { sync, currentFiles, fileByName } from "@/lib/sync";
 import { allBrands, createBrand, reopenBrand, requireBrand, setCurrentBrand, setSchedule } from "@/lib/brands";
 import { addLine, removeLine, bossLine, BRAND_FILES, SEP_FILES } from "@/lib/memory";
-import { attach, attachAll, connectionSecret, disconnect, saveConnection, setBrandNotion, type NotionRead } from "@/lib/connections";
+import { attach, attachAll, connectionSecret, disconnect, saveConnection, setBrandGmail, setBrandNotion, updateMeta, type NotionRead } from "@/lib/connections";
+import { gmailCheckLabel, gmailLabels } from "@/lib/gmail";
+import { mailNews, refreshMail } from "@/lib/mailbox";
 import { getDatabase, getDataSource, getPage, notionId, notionMe } from "@/lib/notion";
 import { ensureDatabases, pushMirrors } from "@/lib/mirror";
 
@@ -291,6 +293,70 @@ export async function setNotionSave(formData: FormData) {
   await pushMirrors(b.id).catch(() => {});
   revalidatePath("/", "layout");
   redirect("/brand/notion");
+}
+
+// ---- Gmail: the boss's address and an app password. Read by label, copies to the same address only.
+
+export async function connectGmail(formData: FormData) {
+  await requireAuth();
+  const address = String(formData.get("address") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "").replace(/\s+/g, "");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address) || password.length < 8) redirect("/brand/gmail?loi=khoa");
+  const key = { address, password };
+  const labels = await gmailLabels(key).catch(() => null);
+  if (!labels) redirect("/brand/gmail?loi=khoa");
+  await saveConnection("gmail", JSON.stringify(key), address);
+  await updateMeta("gmail", (m) => ({ ...m, labels }));
+  await attachAll().catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/brand/gmail");
+}
+
+export async function disconnectGmail() {
+  await requireAuth();
+  await disconnect("gmail");
+  revalidatePath("/", "layout");
+  redirect("/brand#nguon");
+}
+
+// The label the team reads for this brand, checked against the mailbox, or none.
+export async function setGmailRead(formData: FormData) {
+  const b = await requireBrand();
+  if (formData.get("clear")) {
+    await setBrandGmail(b.id, { label: null });
+    await refreshMail(b.id, 0).catch(() => {});
+    revalidatePath("/", "layout");
+    redirect("/brand/gmail");
+  }
+  const secret = await connectionSecret("gmail");
+  const label = String(formData.get("label") ?? "").trim();
+  if (!secret || !label) redirect("/brand/gmail?loi=nhan");
+  const path = await gmailCheckLabel(JSON.parse(secret), label).catch(() => null);
+  if (!path) redirect("/brand/gmail?loi=nhan");
+  await setBrandGmail(b.id, { label: path });
+  await refreshMail(b.id, 0).catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/brand/gmail");
+}
+
+// Copies of approved posts by mail, on or off for this brand; on sends what is already approved.
+export async function setGmailCopy(formData: FormData) {
+  const b = await requireBrand();
+  const on = String(formData.get("copy") ?? "") === "1";
+  await setBrandGmail(b.id, { copy: on });
+  if (on) await pushMirrors(b.id).catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/brand/gmail");
+}
+
+// The home page's "Đọc thư": the lead reads the unread mail under the brand's label and sums it up in chat.
+export async function readMail() {
+  const b = await requireBrand();
+  const news = await mailNews(b.id);
+  if (!news) redirect("/");
+  await order(b.id, `Đọc thư mới trong nhãn «${news.label}» của Gmail: dùng gmail_search với unseen, đọc từng thư bằng gmail_read, tóm tắt mỗi thư trong 2 dòng và liệt kê việc sếp cần làm. Không trả lời thư, không gửi gì.`);
+  await refreshMail(b.id, 0).catch(() => {});
+  redirect("/chat");
 }
 
 // One more try at giving this office the endpoint, after an error.
