@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { runWeek, sendMessage } from "@/app/actions";
 import { IconSend, IconSpinner, IconX } from "./Icons";
 import { SubmitButton } from "./SubmitButton";
+import { MessageBox, clearBox, grow } from "./MessageBox";
 import { DOOR, INK, LEAD_QUICK, META, STATE_COLOR, STATE_LABEL, WORKER_QUICK, privateOrder, type Agent, type MapEmployee, type Worker } from "./island-meta";
 
 // The DOM half of the island: the composer under the scene, the employee card and the toast.
@@ -64,18 +65,19 @@ function Note({ note }: { note: { ok: boolean; text: string } | null }) {
 
 // The bar at the bottom of the island. With a worker chosen, the order goes to the lead marked for that worker.
 export function Composer({ running, target, onClearTarget, className = "" }: { running: boolean; target: Worker | null; onClearTarget: () => void; className?: string }) {
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const { send, pending, note } = useSend();
   const fill = (text: string) => {
     if (!input.current) return;
     input.current.value = text;
+    grow(input.current);
     input.current.focus();
   };
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     const text = input.current?.value.trim() ?? "";
     if (!text) return;
-    send(target ? privateOrder(target, text) : text, () => { if (input.current) input.current.value = ""; });
+    send(target ? privateOrder(target, text) : text, () => clearBox(input.current));
   };
   return (
     <div className={`flex-col gap-2 rounded-[18px] border border-line bg-card p-3 shadow-[0_8px_30px_rgba(207,61,122,0.12)] ${className}`}>
@@ -98,9 +100,9 @@ export function Composer({ running, target, onClearTarget, className = "" }: { r
           </button>
         ))}
       </div>
-      <form onSubmit={submit} className="flex items-center gap-2">
+      <form onSubmit={submit} className="flex items-end gap-2">
         <label htmlFor="island-msg" className="sr-only">Nhắn trưởng nhóm</label>
-        <input id="island-msg" ref={input} name="text" className="input h-[46px] flex-1" placeholder={target ? `Nhắn ${META[target].name}, qua trưởng nhóm` : "Nhắn trưởng nhóm, tiếng Việt là được"} required autoComplete="off" />
+        <MessageBox id="island-msg" ref={input} className="flex-1" placeholder={target ? `Nhắn ${META[target].name}, qua trưởng nhóm` : "Nhắn trưởng nhóm, tiếng Việt là được"} onSend={submit} />
         <SendButton pending={pending} />
       </form>
       {note ? <Note note={note} /> : <div className="text-[11.5px] text-muted">{target ? `Trưởng nhóm nhận rồi chuyển cho ${META[target].name}. Hiện ở trang Trò chuyện như mọi lệnh.` : "Gửi như ở trang Trưởng nhóm. Trả lời hiện ở bong bóng của trưởng nhóm."}</div>}

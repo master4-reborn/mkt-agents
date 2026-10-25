@@ -5,6 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { runWeek, sendMessage } from "@/app/actions";
 import { IconSend, IconSpinner } from "./Icons";
 import { SubmitButton } from "./SubmitButton";
+import { MessageBox, clearBox } from "./MessageBox";
 
 // The bar at the bottom of the chat. Your message shows at once, faded with "đang gửi",
 // and settles into the conversation when the office has it. If it fails, the text comes back to the box.
@@ -12,13 +13,13 @@ export function ChatComposer({ waiting, running }: { waiting: number; running: b
   const [pending, setPending] = useState<string | null>(null);
   const [failed, setFailed] = useState<{ text: string; why: string | null } | null>(null);
   const [, start] = useTransition();
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     const text = input.current?.value.trim();
     if (!text || pending) return;
-    input.current!.value = "";
+    clearBox(input.current);
     setFailed(null);
     setPending(text);
     start(async () => {
@@ -62,9 +63,9 @@ export function ChatComposer({ waiting, running }: { waiting: number; running: b
           <Link href="/brand" className="chip h-9 flex-none border border-line bg-bg px-3 text-[13px] text-accent-deep">Thẻ thương hiệu</Link>
           <Link href="/drafts" className="chip h-9 flex-none border border-line bg-bg px-3 text-[13px] text-accent-deep">Bài chờ duyệt · {waiting}</Link>
         </div>
-        <form onSubmit={submit} className="flex items-center gap-2">
+        <form onSubmit={submit} className="flex items-end gap-2">
           <label htmlFor="msg" className="sr-only">Nhắn trưởng nhóm</label>
-          <input id="msg" ref={input} name="text" className="input h-[46px] flex-1" placeholder="Nhắn trưởng nhóm, tiếng Việt là được" required autoComplete="off" />
+          <MessageBox id="msg" ref={input} className="flex-1" placeholder="Nhắn trưởng nhóm, tiếng Việt là được" onSend={submit} />
           <button
             type="submit"
             aria-label={pending ? "Đang gửi" : "Gửi"}
