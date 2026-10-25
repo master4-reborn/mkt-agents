@@ -29,9 +29,15 @@ The team learns through two Managed Agents memory stores mounted into every offi
 
 `vercel.json` declares one cron: every Monday 01:00 UTC (08:00 Việt Nam; Hobby plan fires within the hour) Vercel calls `/api/cron/week` with `Authorization: Bearer $CRON_SECRET`. The route sends the same "Chạy tuần mới" order the home button sends to every brand whose `schedule` is on (the "Lịch chạy tuần" card on the Thương hiệu page), skipping a brand that already ran this week, whose team is busy, or whose office stopped. Off by default. Nothing fires locally.
 
-## Connections (vault)
+## Connections (phase 5: Nguồn và lưu trữ)
 
-`vaults/sep.yaml` declares the boss's credential vault (applied with `ant apply`, id in `../claude-lock.json` or `OFFICE_VAULT_ID`). Every new office is opened with it attached, because `vault_ids` is create-only. It is empty until a connection is added with `ant beta:vaults:credentials create` (Notion, Gmail, Drive tokens, per the Managed Agents vault docs) and the matching MCP server is declared on the agent that needs it; sessions already open pick up MCP servers through `sessions.update` while idle. Offices opened before the vault existed have no vault until reopened.
+The team reads the internet by default. From the Thương hiệu page the boss can connect storages by pasting a key, no login screen: today Notion (an internal integration secret), later Gmail and Drive. A connected storage is read by the team and receives copies of what the team delivers.
+
+- Keys are sealed with AES-256-GCM under `CONNECT_KEY` before they reach the `connections` table (`src/lib/crypto.ts`); local dev without the variable uses a fixed key.
+- The team reads through one read-only MCP endpoint of this app, `/api/mcp` (JSON-RPC over POST; tools `notion_query`, `notion_page`, `notion_search`). The endpoint is declared on every office as an MCP server named `nguon`, with a bearer kept as a `static_bearer` credential in the boss's vault (`vaults/sep.yaml`) and as a hash in `settings`. The vault credential is keyed by the endpoint URL, so the app needs its public address: `APP_URL`, or Vercel's `VERCEL_PROJECT_PRODUCTION_URL`. Locally there is no public address and nothing is attached.
+- An office gets the endpoint through `sessions.update` (only while idle; a busy office is marked pending and the poll retries) or at birth (`agent_with_overrides`). The lead's own tools are read from the agent and sent back with the MCP toolset, because the update replaces the whole list.
+- Per brand, the boss chooses one Notion database to read ("Đọc") and one page to save under ("Lưu vào"). The app creates three databases under that page (Bài đã duyệt, Báo cáo tuần, Thẻ thương hiệu; columns Tên, Thương hiệu, Tuần, Ngày, Trạng thái, Tệp) and, from the poll, saves each approved post, weekly report and ready brand card once (`mirrors` table, `src/lib/mirror.ts`). The agents never write outside the office.
+- `agents/lead.md` has a "Nguồn ngoài" section telling the lead when to read Notion; apply it with `ant apply agents` so new offices get it.
 
 ## Deploy (Vercel + Supabase, Singapore)
 
@@ -43,6 +49,8 @@ The team learns through two Managed Agents memory stores mounted into every offi
    - `OFFICE_MEMORY_ID`: from `claude-lock.json` (`./memory_stores/sep.yaml`), the shared memory store
    - `OFFICE_VAULT_ID`: from `claude-lock.json` (`./vaults/sep.yaml`), the credential vault
    - `CRON_SECRET`: any long random string; Vercel sends it with the Monday cron call
+   - `CONNECT_KEY`: 32 random bytes, base64 (`openssl rand -base64 32`); seals the storage keys the boss pastes
+   - `APP_URL`: optional, the public address of the app for the office's MCP endpoint (defaults to the Vercel production URL)
    - `OFFICE_SESSION_ID`: optional, the session from `.office/session_id` to carry over as the first brand
    - `ANTHROPIC_WORKSPACE_ID`: for the Console link
    - `APP_PASSWORD`: the page's password
@@ -59,7 +67,10 @@ The production build has been checked against a real Postgres 17 (`next build` t
 | `/drafts` | Drafts by status; a draft page shows the post, Approve / Reject with a note, and the sources and QA checklist |
 | `/research` | Topics, pains and competitors per week; ask for one more post from a topic |
 | `/reports` | Enter each published post's numbers; the metrics report per week |
-| `/brand`, `/brand/new` | The current card, edits by sentence; the Monday schedule on/off; what the team learned (per brand and for all brands), reopen a stopped office; open an office for another brand |
+| `/brand`, `/brand/new` | The current card, edits by sentence; the Monday schedule on/off; sources and storage; what the team learned (per brand and for all brands), reopen a stopped office; open an office for another brand |
+| `/brand/notion` | Connect Notion with a pasted secret; per brand, the database the team reads and the page the app saves under; last saves |
+| `/office` | The 3D island, full screen |
 | `/chat` | The conversation with the lead; send any order |
 | `/api/status` | Polled by the page: syncs new files and messages, returns status and cost |
 | `/api/cron/week` | Called by Vercel's cron on Monday mornings: starts the week for every brand with the schedule on |
+| `/api/mcp` | The office's read-only MCP endpoint (bearer from the vault): Notion tools |

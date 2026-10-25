@@ -7,6 +7,8 @@ export const brands = pgTable("brands", {
   memoryStoreId: text("memory_store_id"), // the brand's memory store; null for an office opened before memory existed
   slug: text("slug"), // the store's name is brand-<slug>, mounted at /mnt/memory/brand-<slug>/
   schedule: text("schedule"), // "mon" = the cron sends "Chạy tuần mới" every Monday morning; null = the boss runs weeks by hand
+  notionRead: text("notion_read"), // JSON: the Notion database the team reads for this brand, or null
+  notionSave: text("notion_save"), // JSON: the Notion page the app saves this brand's copies under, or null
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -66,4 +68,29 @@ export const activity = pgTable("activity", {
   kind: text("kind").notNull(), // task | report | running | idle
   text: text("text").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
+
+// A storage the boss connected (Notion, Gmail, Drive): one row per kind, the key sealed with CONNECT_KEY (lib/crypto.ts).
+export const connections = pgTable("connections", {
+  kind: text("kind").primaryKey(), // notion | gmail | drive
+  secret: text("secret").notNull(), // sealed key, opened only on the server
+  label: text("label").notNull(), // what the key unlocked, shown on the page: workspace name, address
+  status: text("status").notNull(), // ok | error
+  error: text("error"),
+  meta: text("meta").notNull().default("{}"), // JSON: the Notion databases the app created, per save page
+  connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+});
+
+// One copy the app saved outside the office (a Notion row) per file version; an error row is retried by the next poll.
+export const mirrors = pgTable("mirrors", {
+  id: serial("id").primaryKey(),
+  brand: text("brand").notNull(),
+  fileId: text("file_id").notNull(),
+  target: text("target").notNull(), // notion
+  externalId: text("external_id"),
+  url: text("url"),
+  status: text("status").notNull(), // ok | error
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

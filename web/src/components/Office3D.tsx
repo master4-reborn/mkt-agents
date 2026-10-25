@@ -409,8 +409,9 @@ preloadOffice();
 
 /* ---------- page component ---------- */
 
-// compact: just the scene, filling its parent (the desktop home page). Otherwise the full page with the side panel.
-export default function Office3D({ team, waiting, week, compact = false }: { team: MapEmployee[]; waiting: number; week: string; compact?: boolean }) {
+// compact: just the scene, filling its parent (the desktop home page). full: the whole window under the app's nav,
+// the side panel floating over the island (the Văn phòng page). Otherwise a boxed scene with the panel beside it.
+export default function Office3D({ team, waiting, week, compact = false, full = false }: { team: MapEmployee[]; waiting: number; week: string; compact?: boolean; full?: boolean }) {
   const [sel, setSel] = useState<Agent>(team.find((t) => t.state === "working" && t.agent !== "lead")?.agent ?? "lead");
   const [autoRotate, setAutoRotate] = useState(true);
   const [bubbles, setBubbles] = useState(true);
@@ -444,8 +445,11 @@ export default function Office3D({ team, waiting, week, compact = false }: { tea
   const chip = "rounded-full bg-white/90 px-3 py-1 text-[12px] font-semibold text-[#7a2b4c]";
 
   return (
-    <div className={compact ? "h-full" : "grid gap-4 lg:mx-[calc(50%-min(50vw,590px))] lg:grid-cols-[1fr_300px] lg:items-start"}>
-      <div className={`relative overflow-hidden rounded-3xl border border-pink-200 ${compact ? "h-full min-h-[520px]" : "h-[56vh] min-h-[400px] sm:h-[64vh]"}`} style={{ background: "linear-gradient(180deg,#ffe4ef 0%,#fff3f8 55%,#ffe9f2 100%)" }}>
+    <div className={compact || full ? "h-full" : "grid gap-4 lg:mx-[calc(50%-min(50vw,590px))] lg:grid-cols-[1fr_300px] lg:items-start"}>
+      <div
+        className={`overflow-hidden ${full ? "fixed inset-x-0 top-0 bottom-[84px] z-10 lg:bottom-0 lg:left-[220px]" : `relative rounded-3xl border border-pink-200 ${compact ? "h-full min-h-[520px]" : "h-[56vh] min-h-[400px] sm:h-[64vh]"}`}`}
+        style={{ background: "linear-gradient(180deg,#ffe4ef 0%,#fff3f8 55%,#ffe9f2 100%)" }}
+      >
         <Canvas dpr={[1, 1.75]} gl={{ alpha: true, antialias: true, toneMapping: THREE.NoToneMapping }} className="!absolute inset-0">
           <Scene team={team} demo={demo} demoView={demoView} setDemoView={setDemoView} autoRotate={autoRotate} sel={sel} setSel={setSel} resetKey={resetKey} nodes={nodes} anchors={anchors} />
         </Canvas>
@@ -484,7 +488,7 @@ export default function Office3D({ team, waiting, week, compact = false }: { tea
         </div>
       </div>
 
-      {!compact && <aside className="card space-y-3 border-pink-200 bg-[#fff7fa] lg:max-h-[64vh] lg:overflow-auto">
+      {!compact && <aside className={full ? "fixed inset-x-3 bottom-[96px] z-20 max-h-[38vh] space-y-3 overflow-auto rounded-2xl border border-pink-200 bg-[#fff7fa]/95 p-4 shadow-[0_8px_30px_rgba(207,61,122,0.12)] backdrop-blur lg:inset-x-auto lg:bottom-4 lg:right-4 lg:top-16 lg:max-h-none lg:w-[320px]" : "card space-y-3 border-pink-200 bg-[#fff7fa] lg:max-h-[64vh] lg:overflow-auto"}>
         <div className="flex items-center gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white text-2xl shadow-sm" style={{ background: m.fur }} aria-hidden>
             🐱

@@ -12,6 +12,7 @@ import { DesktopOnly } from "@/components/DesktopOnly";
 import { IconCheck, IconChevron, IconPlay } from "@/components/Icons";
 import OfficeScene from "@/components/OfficeScene";
 import { runWeek } from "../actions";
+import { connection } from "@/lib/connections";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,11 @@ export default async function Home() {
   const replies = replyFiles.map((r) => { const p = parseFile(r.name, r.content); return { post: String(p.data.post ?? ""), status: r.status, reply: replyParts(p.body).reply }; });
   const waiting = drafts.filter((d) => d.status === "ready");
   const lastReport = [...convo].reverse().find((m) => m.role === "lead" && parseReport(m.text)) ?? null;
-  const tasks = userTasks(drafts, lastReport, files, reports, replies);
+  const notion = await connection("notion");
+  const tasks: Task[] = [
+    ...(notion?.status === "error" ? [{ kind: "key" as const, what: "Notion", error: notion.error ?? "lỗi", href: "/brand/notion" }] : []),
+    ...userTasks(drafts, lastReport, files, reports, replies),
+  ];
   const working = new Set(team.filter((t) => t.state === "working").map((t) => t.agent));
   const steps = weekSteps(week, drafts, research, working);
   const run = lastRun(convo);
@@ -154,6 +159,17 @@ function Hero({ waiting, running, brandReady, finishedAt, drafts, steps, minutes
 function TaskRow({ task }: { task: Task }) {
   const circle = <span className="h-[22px] w-[22px] flex-none rounded-full border-2 border-accent" aria-hidden />;
   if (task.kind === "post") return <PostRow name={task.name} title={task.title} post={task.post} />;
+  if (task.kind === "key")
+    return (
+      <Link href={task.href} className="flex items-center gap-3 border-b border-line-soft p-3.5 text-ink last:border-b-0">
+        <span className="h-[22px] w-[22px] flex-none rounded-full border-2 border-bad" aria-hidden />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="text-sm font-semibold">Kết nối {task.what} lỗi</div>
+          <div className="truncate text-xs text-muted">{task.error} · đội tạm không đọc {task.what}</div>
+        </div>
+        <span className="chip chip-bad flex-none">Dán lại khoá</span>
+      </Link>
+    );
   if (task.kind === "reply")
     return (
       <Link href={`/drafts/${encodeURIComponent(task.name)}#tra-loi`} className="flex items-center gap-3 border-b border-line-soft p-3.5 text-ink last:border-b-0">

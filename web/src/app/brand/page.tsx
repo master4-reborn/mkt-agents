@@ -8,6 +8,7 @@ import { parseFile, brandCard, md, type Field } from "@/lib/parse";
 import { lessonLines, BRAND_FILES, SEP_FILES } from "@/lib/memory";
 import type { Brand as BrandRow } from "@/lib/brands";
 import { askBrand, addLesson, forgetLine, reopen, toggleSchedule } from "../actions";
+import { Sources } from "./Sources";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,8 @@ export default async function Brand() {
       </form>
 
       <Schedule on={me.schedule === "mon"} />
+
+      <Sources me={me} />
 
       {me.memoryStoreId ? (
         <Memory

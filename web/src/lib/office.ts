@@ -19,7 +19,7 @@ export function consoleUrl(sid: string): string {
 }
 
 // The lead agent and the cloud environment, from the env or from `ant apply`'s lock file next to the repo.
-function officeIds(): { agent: string; env: string } {
+export function officeIds(): { agent: string; env: string } {
   let agent = process.env.OFFICE_AGENT_ID;
   let env = process.env.OFFICE_ENV_ID;
   if (!agent || !env) {
@@ -87,30 +87,34 @@ const SETUP = "Set up the office. Create the folders listed in your instructions
 
 // Opens a new office for a brand: a session with its own budget cap and the two memory stores (the boss's shared one
 // and a new one for this brand), told to set up and then to build the brand card. Stores attach at creation only.
-export async function openOffice(sentence: string, budgetUsd: number): Promise<Office> {
+export async function openOffice(sentence: string, budgetUsd: number, overrides: AgentOverrides = null): Promise<Office> {
   const sep = memoryStoreId();
   const store = sep ? await createBrandStore(sentence) : null;
-  const id = await createSession(sentence, budgetUsd, sep && store ? memoryResources(sep, store.id) : [], `New brand: ${sentence}`);
+  const id = await createSession(sentence, budgetUsd, sep && store ? memoryResources(sep, store.id) : [], `New brand: ${sentence}`, overrides);
   return { id, memoryStoreId: store?.id ?? null, slug: store?.slug ?? null };
 }
 
 // A stopped office (budget reached or terminated) gets a new session on the same memory stores, so nothing learned
 // is lost. The current card travels in the first message; a brand from before memory existed gets its store now.
-export async function reopenOffice(brand: { sentence: string; memoryStoreId: string | null; slug: string | null }, budgetUsd: number, card: string | null): Promise<Office> {
+export async function reopenOffice(brand: { sentence: string; memoryStoreId: string | null; slug: string | null }, budgetUsd: number, card: string | null, overrides: AgentOverrides = null): Promise<Office> {
   const sep = memoryStoreId();
   const store = sep ? brand.memoryStoreId ? { id: brand.memoryStoreId, slug: brand.slug } : await createBrandStore(brand.sentence) : null;
   const text = card
     ? `Mở lại văn phòng cho thương hiệu đã có. Thẻ thương hiệu hiện tại ở dưới: ghi nguyên văn vào brand/BRAND.md, chép vào /mnt/session/outputs/BRAND.md, đọc bộ nhớ rồi báo cáo. Không chạy tuần mới.\n\n${card}`
     : `New brand: ${brand.sentence}`;
-  const id = await createSession(brand.sentence, budgetUsd, sep && store ? memoryResources(sep, store.id) : [], text);
+  const id = await createSession(brand.sentence, budgetUsd, sep && store ? memoryResources(sep, store.id) : [], text, overrides);
   return { id, memoryStoreId: store?.id ?? null, slug: store?.slug ?? null };
 }
 
-async function createSession(sentence: string, budgetUsd: number, resources: ReturnType<typeof memoryResources> | [], second: string): Promise<string> {
+// The app's own MCP endpoint and the lead's tools (lib/connections.ts, mcpAgent), when a storage is connected: an office
+// born with them needs no later update.
+export type AgentOverrides = { mcp_servers: { type: "url"; name: string; url: string }[]; tools: any[] } | null;
+
+async function createSession(sentence: string, budgetUsd: number, resources: ReturnType<typeof memoryResources> | [], second: string, overrides: AgentOverrides): Promise<string> {
   const ids = officeIds();
   const vault = vaultId();
   const s = await anthropic().beta.sessions.create({
-    agent: ids.agent,
+    agent: overrides ? { type: "agent_with_overrides", id: ids.agent, ...overrides } : ids.agent,
     environment_id: ids.env,
     title: sentence.slice(0, 80),
     budget: { type: "limit", max_list_cost: { amount: String(Math.round(budgetUsd * 100)), currency: "USD" } },

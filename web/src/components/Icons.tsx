@@ -23,3 +23,8 @@ export const IconPlay = ({ size = 16, ...p }: P) => <svg {...base(size, { fill: 
 export const IconRefresh = ({ size = 16, ...p }: P) => <svg {...base(size, p)}><path d="M20 12a8 8 0 1 1-2.3-5.6" /><path d="M20 4v5h-5" /></svg>;
 export const IconPlus = ({ size = 16, ...p }: P) => <svg {...base(size, p)}><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
 export const IconSpinner = ({ size = 18, ...p }: P) => <svg {...base(size, { strokeWidth: 2.5, ...p })}><path d="M12 3a9 9 0 1 1-6.4 2.6" /></svg>;
+export const IconGlobe = ({ size = 22, ...p }: P) => <svg {...base(size, p)}><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><ellipse cx="12" cy="12" rx="4" ry="9" /></svg>;
+export const IconMail = ({ size = 22, ...p }: P) => <svg {...base(size, p)}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>;
+export const IconFolder = ({ size = 22, ...p }: P) => <svg {...base(size, p)}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>;
+export const IconTable = ({ size = 22, ...p }: P) => <svg {...base(size, p)}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M9 10v10" /></svg>;
+export const IconExternal = ({ size = 14, ...p }: P) => <svg {...base(size, p)}><path d="M14 4h6v6M20 4l-9 9" /><path d="M19 14v6H4V5h6" /></svg>;

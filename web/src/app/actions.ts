@@ -8,6 +8,9 @@ import { requireAuth, login } from "@/lib/auth";
 import { sync, currentFiles, fileByName } from "@/lib/sync";
 import { allBrands, createBrand, reopenBrand, requireBrand, setCurrentBrand, setSchedule } from "@/lib/brands";
 import { addLine, removeLine, bossLine, BRAND_FILES, SEP_FILES } from "@/lib/memory";
+import { attach, attachAll, connectionSecret, disconnect, saveConnection, setBrandNotion, type NotionRead } from "@/lib/connections";
+import { getDatabase, getDataSource, getPage, notionId, notionMe } from "@/lib/notion";
+import { ensureDatabases, pushMirrors } from "@/lib/mirror";
 
 // Orders go to the lead in Vietnamese so it answers in Vietnamese (it mirrors the boss's language).
 
@@ -189,4 +192,87 @@ export async function loginAction(formData: FormData) {
   const ok = await login(String(formData.get("password") ?? ""));
   if (!ok) redirect("/login?bad=1");
   redirect("/");
+}
+
+// ---- Nguồn và lưu trữ (phase 5): the boss connects Notion from the page, no login screen. One key for all brands.
+
+// A Notion internal-integration secret: checked with one call, sealed into the database, then every office gets the
+// app's read endpoint (now, or when its team is free).
+export async function connectNotion(formData: FormData) {
+  await requireAuth();
+  const secret = String(formData.get("secret") ?? "").trim();
+  const me = secret ? await notionMe(secret).catch(() => null) : null;
+  if (!me) redirect("/brand/notion?loi=khoa");
+  await saveConnection("notion", secret, me.workspace ? `${me.name} · ${me.workspace}` : me.name);
+  await attachAll().catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/brand/notion");
+}
+
+// The key is forgotten at once; what was saved in Notion stays there.
+export async function disconnectNotion() {
+  await requireAuth();
+  await disconnect("notion");
+  revalidatePath("/", "layout");
+  redirect("/brand#nguon");
+}
+
+// The database the team reads for this brand, from its link (a database or one of its data sources), or none.
+export async function setNotionRead(formData: FormData) {
+  const b = await requireBrand();
+  if (formData.get("clear")) {
+    await setBrandNotion(b.id, { read: null });
+    revalidatePath("/", "layout");
+    redirect("/brand/notion");
+  }
+  const secret = await connectionSecret("notion");
+  const link = String(formData.get("link") ?? "").trim();
+  const id = notionId(link);
+  if (!secret || !id) redirect("/brand/notion?loi=doc");
+  const read = await resolveRead(secret, id, link).catch(() => null);
+  if (!read) redirect("/brand/notion?loi=doc");
+  await setBrandNotion(b.id, { read });
+  revalidatePath("/", "layout");
+  redirect("/brand/notion");
+}
+
+async function resolveRead(secret: string, id: string, link: string): Promise<NotionRead> {
+  try {
+    const d = await getDatabase(secret, id);
+    if (!d.dataSources[0]) throw new Error("no data source");
+    return { id: d.id, dataSourceId: d.dataSources[0].id, title: d.title, url: d.url || link };
+  } catch {
+    const ds = await getDataSource(secret, id);
+    return { id: ds.databaseId ?? ds.id, dataSourceId: ds.id, title: ds.title, url: link };
+  }
+}
+
+// The page this brand's copies go under: the app makes its three databases there at once, then saves what is already approved.
+export async function setNotionSave(formData: FormData) {
+  const b = await requireBrand();
+  if (formData.get("clear")) {
+    await setBrandNotion(b.id, { save: null });
+    revalidatePath("/", "layout");
+    redirect("/brand/notion");
+  }
+  const secret = await connectionSecret("notion");
+  const link = String(formData.get("link") ?? "").trim();
+  const id = notionId(link);
+  if (!secret || !id) redirect("/brand/notion?loi=luu");
+  const page = await getPage(secret, id).catch(() => null);
+  if (!page) redirect("/brand/notion?loi=luu");
+  const made = await ensureDatabases(secret, page.id).then(() => true).catch(() => false);
+  if (!made) redirect("/brand/notion?loi=bang");
+  await setBrandNotion(b.id, { save: { pageId: page.id, title: page.title, url: page.url || link } });
+  await pushMirrors(b.id).catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/brand/notion");
+}
+
+// One more try at giving this office the endpoint, after an error.
+export async function retryAttach() {
+  const b = await requireBrand();
+  await attach(b.id).catch(() => {});
+  revalidatePath("/", "layout");
+  redirect("/brand/notion");
 }
