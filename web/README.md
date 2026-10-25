@@ -69,7 +69,7 @@ The production build has been checked against a real Postgres 17 (`next build` t
 | `/reports` | Enter each published post's numbers; the metrics report per week |
 | `/brand`, `/brand/new` | The current card, edits by sentence; the Monday schedule on/off; sources and storage; what the team learned (per brand and for all brands), reopen a stopped office; open an office for another brand |
 | `/brand/notion` | Connect Notion with a pasted secret; per brand, the database the team reads and the page the app saves under; last saves |
-| `/office` | The 3D island, full screen |
+| `/office` | The 3D island, full screen: order the lead from the composer, tap a cat for its card and a private order (sent as "Chuyển cho <role>: …"), tap a building to open its page; on a phone, Hôm nay has a window card into it |
 | `/chat` | The conversation with the lead; send any order |
 | `/api/status` | Polled by the page: syncs new files and messages, returns status and cost |
 | `/api/cron/week` | Called by Vercel's cron on Monday mornings: starts the week for every brand with the schedule on |

@@ -11,6 +11,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { DesktopOnly } from "@/components/DesktopOnly";
 import { IconCheck, IconChevron, IconPlay } from "@/components/Icons";
 import OfficeScene from "@/components/OfficeScene";
+import { IslandWindow } from "@/components/IslandWindow";
 import { runWeek } from "../actions";
 import { connection } from "@/lib/connections";
 
@@ -54,6 +55,7 @@ export default async function Home() {
         </DesktopOnly>
 
         <div className="flex min-w-0 flex-col gap-5">
+          <IslandWindow team={team.map((t) => ({ ...t, since: t.since ? t.since.toISOString() : null }))} />
           <Hero waiting={waiting} running={running} brandReady={brandReady} finishedAt={run?.finishedAt ?? null} drafts={drafts.length} steps={steps} minutes={minutes} />
 
           {tasks.length > 0 && (

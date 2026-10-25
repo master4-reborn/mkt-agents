@@ -2,19 +2,15 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { ContactShadows, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { Cat, Castle, House, NatureTree, Piece, preloadOffice } from "./OfficeModels";
+import { AgentCard, Composer, Toast } from "./Island";
+import { DOOR, META, ORDER, STATE_COLOR, firstLines, type Agent, type MapEmployee, type Worker } from "./island-meta";
 
-export type MapEmployee = {
-  agent: "lead" | "research" | "writer" | "qa" | "metrics";
-  state: "working" | "done" | "waiting";
-  task: string | null;
-  report: string | null;
-  since: string | null;
-};
-type Agent = MapEmployee["agent"];
+export type { MapEmployee };
 type Mode = "idle" | "work" | "walk";
 
 const C = {
@@ -35,20 +31,11 @@ const C = {
   gold: "#f6c454",
 };
 
-const META: Record<Agent, { name: string; fur: string; roof: string; tools: string; job: string; demoTask: string }> = {
-  lead: { name: "Điều phối", fur: "#fff1e6", roof: C.roofs[0], tools: "Giao việc, đọc, ghi", job: "Nhận lệnh của bạn, chia việc, giữ cổng duyệt, báo cáo ba dòng", demoTask: "" },
-  research: { name: "Nghiên cứu", fur: "#cdb8ff", roof: "#a98bff", tools: "Tìm web, đọc web, bash", job: "Quét đối thủ và bình luận, bảng nỗi đau, 5 chủ đề", demoTask: "quét đối thủ và bình luận tuần này" },
-  writer: { name: "Viết bài", fur: "#ff9ec4", roof: "#ff6fa3", tools: "Chỉ đọc, ghi file", job: "3 đến 5 bài nháp mỗi tuần, đúng giọng thương hiệu", demoTask: "viết 4 bài nháp từ 5 chủ đề" },
-  qa: { name: "QA-QC", fur: "#ffd0b0", roof: "#ffb06b", tools: "Chỉ đọc, ghi file", job: "Soát số liệu, từ cấm, giọng, độ dài; đặt trạng thái", demoTask: "soát 4 bài nháp, đặt trạng thái" },
-  metrics: { name: "Đo số liệu", fur: "#fff0a8", roof: "#6fcfae", tools: "Đọc CSV, bash", job: "So sánh tuần, lặp lại / bỏ, việc cho thứ 2", demoTask: "so số liệu tuần này với tuần trước" },
-};
 
 const RING = 6.4;
 const STOP_R = 5.2;
 const HOUSE_R = 8.1;
 const ANGLE: Record<Exclude<Agent, "lead">, number> = { research: Math.PI * 1.25, writer: Math.PI * 1.75, qa: Math.PI * 0.75, metrics: Math.PI * 0.25 };
-const STATE_LABEL = { working: "Đang chạy", done: "Xong việc", waiting: "Chờ việc" } as const;
-const STATE_COLOR = { working: "#f59e0b", done: "#10b981", waiting: "#c4b5c9" } as const;
 
 function onRing(agent: Exclude<Agent, "lead">, r = RING): [number, number, number] {
   const a = ANGLE[agent];
@@ -235,11 +222,16 @@ function FitCamera() {
   return null;
 }
 
-function Bubble({ text, working, dark }: { text: string; working: boolean; dark?: boolean }) {
+function Bubble({ text, working, dark, wide, action }: { text: string; working: boolean; dark?: boolean; wide?: boolean; action?: { label: string; onClick: () => void } }) {
   const border = dark ? C.ink : working ? "#f59e0b" : "#ffd0e0";
   return (
-    <div className="relative max-w-[170px] rounded-2xl px-2.5 py-1 text-[11.5px] leading-snug shadow-sm" style={{ background: dark ? C.ink : "#fff", color: dark ? "#fff" : C.ink, border: `1.5px solid ${border}`, width: "max-content" }}>
+    <div className={`relative ${wide ? "max-w-[260px]" : "max-w-[170px]"} rounded-2xl px-2.5 py-1 text-[11.5px] leading-snug shadow-sm`} style={{ background: dark ? C.ink : "#fff", color: dark ? "#fff" : C.ink, border: `1.5px solid ${border}`, width: "max-content" }}>
       {text}
+      {action && (
+        <button type="button" onClick={action.onClick} className="pointer-events-auto ml-1 font-semibold text-[#ffc9dc]">
+          {action.label}
+        </button>
+      )}
       <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2" style={{ borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: `7px solid ${border}` }} />
     </div>
   );
@@ -256,7 +248,6 @@ function NamePill({ name, state, selected, onClick }: { name: string; state: Map
 
 /* ---------- demo timeline ---------- */
 
-const ORDER: Exclude<Agent, "lead">[] = ["research", "writer", "qa", "metrics"];
 const STEP = { out: 2.6, work: 3.2, back: 2.6 } as const;
 const STEP_TOTAL = STEP.out + STEP.work + STEP.back;
 
@@ -309,10 +300,21 @@ function Train() {
   );
 }
 
-function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, resetKey, nodes, anchors }: {
-  team: MapEmployee[]; demo: boolean; demoView: Demo | null; setDemoView: (d: Demo | null) => void; autoRotate: boolean; sel: Agent; setSel: (a: Agent) => void; resetKey: number; nodes: Nodes; anchors: Anchor[];
+function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, onOpen, setHover, resetKey, nodes, anchors }: {
+  team: MapEmployee[]; demo: boolean; demoView: Demo | null; setDemoView: (d: Demo | null) => void; autoRotate: boolean; sel: Agent; setSel: (a: Agent) => void; onOpen: (a: Agent) => void; setHover: (a: Agent | null) => void; resetKey: number; nodes: Nodes; anchors: Anchor[];
 }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+  // A building is a door to a page; a cat opens its card.
+  const door = (a: Agent) => ({
+    onClick: (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setHover(null); document.body.style.cursor = ""; onOpen(a); },
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); setHover(a); document.body.style.cursor = "pointer"; },
+    onPointerOut: () => { setHover(null); document.body.style.cursor = ""; },
+  });
+  const pick = (a: Agent) => ({
+    onClick: (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setSel(a); },
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); document.body.style.cursor = "pointer"; },
+    onPointerOut: () => { document.body.style.cursor = ""; },
+  });
   const leadRef = useRef<THREE.Group>(null);
   const demoStart = useRef(0);
   const leadPos = useRef<[number, number, number]>([LEAD_HOME[0], 2.1, LEAD_HOME[2]]);
@@ -359,16 +361,16 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
       <Ground />
       <Suspense fallback={null}>
         <Train />
-        <group onClick={(e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setSel("lead"); }}>
+        <group {...door("lead")}>
           <Castle scale={0.95} />
-          <group ref={leadRef} position={LEAD_HOME}>
-            <Cat fur={META.lead.fur} anim={leadMode} faceCamera={leadMode !== "walk"} scale={CAT_SCALE}>
-              <mesh position={[0, 1.01, 0.08]}>
-                <cylinderGeometry args={[0.12, 0.15, 0.14, 5]} />
-                <meshStandardMaterial color={C.gold} roughness={0.5} metalness={0.3} flatShading />
-              </mesh>
-            </Cat>
-          </group>
+        </group>
+        <group ref={leadRef} position={LEAD_HOME} {...pick("lead")}>
+          <Cat fur={META.lead.fur} anim={leadMode} faceCamera={leadMode !== "walk"} scale={CAT_SCALE}>
+            <mesh position={[0, 1.01, 0.08]}>
+              <cylinderGeometry args={[0.12, 0.15, 0.14, 5]} />
+              <meshStandardMaterial color={C.gold} roughness={0.5} metalness={0.3} flatShading />
+            </mesh>
+          </Cat>
         </group>
         {ORDER.map((agent) => {
           const e = byAgent[agent];
@@ -379,12 +381,14 @@ function Scene({ team, demo, demoView, setDemoView, autoRotate, sel, setSel, res
           const cane: [number, number, number] = [Math.cos(a - 0.26) * (HOUSE_R - 0.4), 0, Math.sin(a - 0.26) * (HOUSE_R - 0.4)];
           const lantern: [number, number, number] = [Math.cos(a - 0.12) * (RING - 0.9), 0, Math.sin(a - 0.12) * (RING - 0.9)];
           return (
-            <group key={agent} onClick={(ev: ThreeEvent<MouseEvent>) => { ev.stopPropagation(); setSel(agent); }}>
-              <House roof={META[agent].roof} position={house} rotation={[0, Math.PI - a, 0]} scale={1.7} />
+            <group key={agent}>
+              <group {...door(agent)}>
+                <House roof={META[agent].roof} position={house} rotation={[0, Math.PI - a, 0]} scale={1.7} />
+              </group>
               <Piece kit="food" name={PROPS[agent]} position={prop} rotation={[0, -a, 0]} scale={2.3} />
               <Piece kit="holiday" name="candy-cane-red" position={cane} rotation={[0, -a + 0.4, 0]} scale={2.4} />
               <Piece kit="town" name="lantern" position={lantern} scale={0.9} />
-              <group position={STOP[agent]}>
+              <group position={STOP[agent]} {...pick(agent)}>
                 <Cat fur={META[agent].fur} anim={state === "working" ? "work" : "idle"} faceCamera scale={CAT_SCALE}>
                   <Laptop open={state !== "waiting"} />
                 </Cat>
@@ -409,24 +413,39 @@ preloadOffice();
 
 /* ---------- page component ---------- */
 
+const WIDE = "(min-width: 1024px)";
+
 // compact: just the scene, filling its parent (the desktop home page). full: the whole window under the app's nav,
-// the side panel floating over the island (the Văn phòng page). Otherwise a boxed scene with the panel beside it.
-export default function Office3D({ team, waiting, week, compact = false, full = false }: { team: MapEmployee[]; waiting: number; week: string; compact?: boolean; full?: boolean }) {
-  const [sel, setSel] = useState<Agent>(team.find((t) => t.state === "working" && t.agent !== "lead")?.agent ?? "lead");
+// with the composer, the employee card and the toast floating over the island (the Văn phòng page).
+// Otherwise a boxed scene with the card beside it.
+export default function Office3D({ team, waiting, week, running = false, compact = false, full = false }: { team: MapEmployee[]; waiting: number; week: string; running?: boolean; compact?: boolean; full?: boolean }) {
+  const router = useRouter();
+  const [sel, setSelState] = useState<Agent>(team.find((t) => t.state === "working" && t.agent !== "lead")?.agent ?? "lead");
+  // The card: always there on a wide screen, a sheet you open by tapping a cat on a phone.
+  const [panel, setPanel] = useState(() => typeof window !== "undefined" && window.matchMedia(WIDE).matches);
+  const [targetOn, setTargetOn] = useState(false);
+  const [hover, setHover] = useState<Agent | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
   const [bubbles, setBubbles] = useState(true);
   const [demo, setDemo] = useState(false);
   const [demoView, setDemoView] = useState<Demo | null>(null);
   const [resetKey, setResetKey] = useState(0);
+  const [toastOn, setToastOn] = useState(false);
+  const [toastN, setToastN] = useState(0);
   const nodes = useMemo<Nodes>(() => new Map(), []);
   const anchors = useMemo<Anchor[]>(
     () => [
       { id: "b:lead", pos: [LEAD_HOME[0], 2.1, LEAD_HOME[2]] },
       { id: "n:lead", pos: [0, 5.4, 0] },
-      ...ORDER.flatMap((a): Anchor[] => [
-        { id: `b:${a}`, pos: [STOP[a][0], 2.1, STOP[a][2]] },
-        { id: `n:${a}`, pos: [STOP[a][0], -0.9, STOP[a][2]] },
-      ]),
+      { id: "h:lead", pos: [0, 7.2, 0] },
+      ...ORDER.flatMap((a): Anchor[] => {
+        const h = onRing(a, HOUSE_R);
+        return [
+          { id: `b:${a}`, pos: [STOP[a][0], 2.1, STOP[a][2]] },
+          { id: `n:${a}`, pos: [STOP[a][0], -0.9, STOP[a][2]] },
+          { id: `h:${a}`, pos: [h[0], 3.6, h[2]] },
+        ];
+      }),
     ],
     [],
   );
@@ -434,15 +453,39 @@ export default function Office3D({ team, waiting, week, compact = false, full = 
     if (el) nodes.set(id, el);
     else nodes.delete(id);
   };
+  // Tapping a cat opens its card; with a worker chosen, the composer addresses it.
+  const setSel = (a: Agent) => {
+    setSelState(a);
+    setPanel(true);
+    setTargetOn(a !== "lead");
+  };
+  const open = (a: Agent) => router.push(DOOR[a].href);
 
   const byAgent = Object.fromEntries(team.map((t) => [t.agent, t])) as Record<Agent, MapEmployee>;
   const stateOf = (a: Agent): MapEmployee["state"] => (a !== "lead" && demo && demoView ? demoView.states[a] : byAgent[a].state);
   const leadLine = demo && demoView ? demoView.leadLine : null;
-  const selected = byAgent[sel];
-  const m = META[sel];
-  const since = selected.since ? new Date(selected.since).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : null;
+  const lead = byAgent.lead;
+  // On the island page the lead's bubble is its latest reply, and a toast says when a new one lands while you watch.
+  const leadReply = full && lead.state !== "working" && !leadLine ? firstLines(lead.report) : "";
+  const [seenReport, setSeenReport] = useState(lead.report);
+  if (seenReport !== lead.report) {
+    setSeenReport(lead.report);
+    if (lead.report) {
+      setToastOn(true);
+      setToastN((n) => n + 1);
+    }
+  }
+  useEffect(() => {
+    if (!toastOn) return;
+    const t = setTimeout(() => setToastOn(false), 9000);
+    return () => clearTimeout(t);
+  }, [toastOn, toastN]);
+  const toast = toastOn ? "Trưởng nhóm vừa báo cáo" : null;
+
+  const target: Worker | null = full && targetOn && sel !== "lead" ? sel : null;
   const pill = (active: boolean) => `rounded-full px-3 py-1 text-[12px] font-semibold shadow-sm transition ${active ? "bg-[#7a2b4c] text-white" : "bg-white/90 text-[#7a2b4c] hover:bg-white"}`;
   const chip = "rounded-full bg-white/90 px-3 py-1 text-[12px] font-semibold text-[#7a2b4c]";
+  const card = (cls: string) => <AgentCard agent={sel} e={byAgent[sel]} state={stateOf(sel)} waiting={waiting} onClose={full ? () => setPanel(false) : undefined} className={cls} />;
 
   return (
     <div className={compact || full ? "h-full" : "grid gap-4 lg:mx-[calc(50%-min(50vw,590px))] lg:grid-cols-[1fr_300px] lg:items-start"}>
@@ -451,23 +494,27 @@ export default function Office3D({ team, waiting, week, compact = false, full = 
         style={{ background: "linear-gradient(180deg,#ffe4ef 0%,#fff3f8 55%,#ffe9f2 100%)" }}
       >
         <Canvas dpr={[1, 1.75]} gl={{ alpha: true, antialias: true, toneMapping: THREE.NoToneMapping }} className="!absolute inset-0">
-          <Scene team={team} demo={demo} demoView={demoView} setDemoView={setDemoView} autoRotate={autoRotate} sel={sel} setSel={setSel} resetKey={resetKey} nodes={nodes} anchors={anchors} />
+          <Scene team={team} demo={demo} demoView={demoView} setDemoView={setDemoView} autoRotate={autoRotate} sel={sel} setSel={setSel} onOpen={open} setHover={setHover} resetKey={resetKey} nodes={nodes} anchors={anchors} />
         </Canvas>
         {/* projected labels */}
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
           {(["lead", ...ORDER] as Agent[]).map((a) => {
             const st = stateOf(a);
             const shown: MapEmployee = { ...byAgent[a], state: st };
-            const text = a === "lead" && leadLine ? leadLine : bubbleText(shown, waiting, week);
+            const reply = a === "lead" ? leadReply : "";
+            const text = a === "lead" && leadLine ? leadLine : reply || bubbleText(shown, waiting, week);
             return (
               <div key={a}>
                 {bubbles && (
                   <div ref={register(`b:${a}`)} className="absolute left-0 top-0 will-change-transform">
-                    <Bubble text={text} working={st === "working"} dark={a === "lead" && !!leadLine} />
+                    <Bubble text={text} working={st === "working"} dark={a === "lead" && (!!leadLine || !!reply)} wide={!!reply} action={reply ? { label: "Xem đầy đủ ›", onClick: () => setSel("lead") } : undefined} />
                   </div>
                 )}
                 <div ref={register(`n:${a}`)} className="absolute left-0 top-0 will-change-transform">
                   <NamePill name={a === "lead" ? "Claude Code · Điều phối" : META[a].name} state={st} selected={sel === a} onClick={() => setSel(a)} />
+                </div>
+                <div ref={register(`h:${a}`)} className="absolute left-0 top-0 will-change-transform" style={{ visibility: hover === a ? "visible" : "hidden" }}>
+                  <span className="rounded-full bg-ink px-2.5 py-1 text-[11.5px] font-semibold text-white shadow-sm" style={{ whiteSpace: "nowrap" }}>{DOOR[a].label} ›</span>
                 </div>
               </div>
             );
@@ -475,51 +522,27 @@ export default function Office3D({ team, waiting, week, compact = false, full = 
         </div>
         {/* chrome */}
         <div className="absolute inset-x-3 top-3 z-30 flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-[#7a2b4c] px-3 py-1 text-[12px] font-bold text-white">Đội AI <span className="hidden font-normal opacity-80 sm:inline">· mini marketing team</span></span>
+          <span className="rounded-full bg-[#7a2b4c] px-3 py-1 text-[12px] font-bold text-white">Đội AI</span>
           <button className={pill(!autoRotate)} onClick={() => setAutoRotate((v) => !v)}>{autoRotate ? "Dừng xoay" : "Xoay"}</button>
           <button className={pill(bubbles)} onClick={() => setBubbles((v) => !v)}>Bong bóng</button>
           <button className={pill(false)} onClick={() => setResetKey((k) => k + 1)}>Toàn cảnh</button>
           <button className={pill(demo)} onClick={() => setDemo((v) => !v)}>{demo ? "Dừng demo" : "Tự chạy ▶"}</button>
           <span className="ml-auto flex items-center gap-1.5">
-            <span className={`${chip} hidden md:inline`}>5 agent</span>
-            <span className={`${chip} hidden md:inline`}>1 bước duyệt</span>
+            <span className={`${chip} hidden md:inline`}>5 nhân viên</span>
             <Link href="/drafts" className="rounded-full bg-[#7a2b4c] px-3 py-1 text-[12px] font-semibold text-white">Cổng duyệt · {waiting} bài</Link>
           </span>
         </div>
+        {full && toast && <Toast text={toast} onOpen={() => { setToastOn(false); setSel("lead"); }} className="absolute left-1/2 top-[76px] z-30 -translate-x-1/2 lg:top-14" />}
       </div>
 
-      {!compact && <aside className={full ? "fixed inset-x-3 bottom-[96px] z-20 max-h-[38vh] space-y-3 overflow-auto rounded-2xl border border-pink-200 bg-[#fff7fa]/95 p-4 shadow-[0_8px_30px_rgba(207,61,122,0.12)] backdrop-blur lg:inset-x-auto lg:bottom-4 lg:right-4 lg:top-16 lg:max-h-none lg:w-[320px]" : "card space-y-3 border-pink-200 bg-[#fff7fa] lg:max-h-[64vh] lg:overflow-auto"}>
-        <div className="flex items-center gap-3">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white text-2xl shadow-sm" style={{ background: m.fur }} aria-hidden>
-            🐱
-          </span>
-          <div className="min-w-0">
-            <div className="truncate text-lg font-bold text-[#7a2b4c]">{m.name}</div>
-            <div className="flex items-center gap-1.5 text-xs text-zinc-600">
-              <span className={`inline-block h-2 w-2 rounded-full ${stateOf(sel) === "working" ? "animate-pulse" : ""}`} style={{ background: STATE_COLOR[stateOf(sel)] }} />
-              {STATE_LABEL[stateOf(sel)]}
-              {since && <span>· từ {since}</span>}
-            </div>
-          </div>
-        </div>
-        <p className="text-sm text-zinc-700">{m.job}</p>
-        <div>
-          <div className="inline-block rounded-2xl rounded-bl-sm bg-[#7a2b4c] px-3 py-1.5 text-[12px] font-semibold text-white">{sel === "lead" ? "Lệnh gần nhất của bạn" : "Sếp giao gì?"}</div>
-          <p className="mt-1.5 whitespace-pre-wrap text-sm text-zinc-800">{selected.task ? selected.task.slice(0, 600) : "Chưa có."}</p>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#7a2b4c]/70">Báo cáo gần nhất</div>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-800">{selected.report ? selected.report.slice(0, 900) : "Chưa có."}</p>
-        </div>
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#7a2b4c]/70">Công cụ</div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {m.tools.split(", ").map((t) => (
-              <span key={t} className="rounded-md bg-white px-2 py-0.5 text-[12px] text-[#7a2b4c] ring-1 ring-pink-200">{t}</span>
-            ))}
-          </div>
-        </div>
-      </aside>}
+      {full ? (
+        <>
+          <Composer running={running} target={target} onClearTarget={() => setTargetOn(false)} className={`${panel ? "hidden lg:flex" : "flex"} fixed inset-x-3 bottom-[96px] z-30 lg:bottom-4 lg:left-[244px] lg:right-auto lg:w-[min(640px,calc(100vw-604px))]`} />
+          {panel && card("fixed inset-x-0 bottom-[84px] z-40 max-h-[64vh] overflow-auto rounded-t-[22px] border border-line bg-[#fff7fa] p-4 pb-5 shadow-[0_-8px_30px_rgba(207,61,122,0.14)] lg:inset-x-auto lg:bottom-4 lg:right-4 lg:top-16 lg:max-h-none lg:w-[320px] lg:rounded-[18px] lg:shadow-[0_8px_30px_rgba(207,61,122,0.12)]")}
+        </>
+      ) : (
+        !compact && card("card border-pink-200 bg-[#fff7fa] lg:max-h-[64vh] lg:overflow-auto")
+      )}
     </div>
   );
 }
