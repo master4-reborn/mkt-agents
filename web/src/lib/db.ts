@@ -2,7 +2,7 @@
 // a real Postgres (Supabase) when DATABASE_URL is set.
 import { sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import { files, decisions, messages, settings, activity, brands } from "./schema";
+import { files, decisions, messages, settings, activity, brands, memories } from "./schema";
 
 type Db = PgDatabase<any, any, any>;
 
@@ -56,6 +56,17 @@ alter table activity add column if not exists brand text not null default '';
 create index if not exists files_brand_idx on files (brand, created_at desc);
 create index if not exists messages_brand_idx on messages (brand, created_at desc);
 create index if not exists activity_brand_idx on activity (brand, created_at desc);
+alter table brands add column if not exists memory_store_id text;
+alter table brands add column if not exists slug text;
+create table if not exists memories (
+  id text primary key,
+  store text not null,
+  path text not null,
+  content text not null,
+  sha256 text not null,
+  updated_at timestamptz not null
+);
+create index if not exists memories_store_idx on memories (store, path);
 `;
 
 // One connection per process, kept on globalThis so a hot reload of this module in `next dev`
@@ -94,4 +105,4 @@ export function getDb(): Promise<Db> {
   return g.__officeDb;
 }
 
-export { files, decisions, messages, settings, activity, brands };
+export { files, decisions, messages, settings, activity, brands, memories };

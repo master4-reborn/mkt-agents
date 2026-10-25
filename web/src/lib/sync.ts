@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { anthropic, BETAS } from "./anthropic";
-import { getDb, files, messages, settings, decisions, activity } from "./db";
+import { getDb, files, messages, settings, decisions, activity, brands, memories } from "./db";
+import { memoryStoreId } from "./office";
 import { kindOf, parseFile } from "./parse";
 
 // Everything here is per brand: `sid` is the brand's office session.
@@ -8,7 +9,7 @@ import { kindOf, parseFile } from "./parse";
 // Pulls what is new from one office: files the team wrote to /mnt/session/outputs/
 // and the conversation with the lead. Safe to call often; everything is keyed by id.
 export async function sync(sid: string): Promise<void> {
-  await Promise.all([syncFiles(sid), syncMessages(sid)]);
+  await Promise.all([syncFiles(sid), syncMessages(sid), syncMemories(sid)]);
   const db = await getDb();
   const value = new Date().toISOString();
   await db.insert(settings).values({ key: `${sid}:synced_at`, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
@@ -48,6 +49,24 @@ async function syncFiles(sid: string) {
         createdAt: new Date(f.created_at),
       })
       .onConflictDoNothing();
+  }
+}
+
+// Mirrors the brand's memory store and the boss's shared one into the memories table, so the Thương hiệu page
+// shows what the team learned without an API call per view. A file the team removed disappears here too.
+async function syncMemories(sid: string) {
+  const db = await getDb();
+  const [b] = await db.select({ store: brands.memoryStoreId }).from(brands).where(eq(brands.id, sid));
+  const stores = [memoryStoreId(), b?.store].filter((x): x is string => !!x);
+  for (const store of stores) {
+    const seen: string[] = [];
+    for await (const m of anthropic().beta.memoryStores.memories.list(store, { view: "full" })) {
+      if (m.type !== "memory") continue;
+      seen.push(m.id);
+      const row = { id: m.id, store, path: m.path, content: m.content ?? "", sha256: m.content_sha256, updatedAt: new Date(m.updated_at) };
+      await db.insert(memories).values(row).onConflictDoUpdate({ target: memories.id, set: { path: row.path, content: row.content, sha256: row.sha256, updatedAt: row.updatedAt } });
+    }
+    await db.delete(memories).where(seen.length ? and(eq(memories.store, store), notInArray(memories.id, seen)) : eq(memories.store, store));
   }
 }
 
@@ -153,6 +172,12 @@ export async function currentFiles(sid: string, kind?: string) {
     const status = d && d.createdAt > f.createdAt ? d.decision : p.status;
     return { ...f, status, title: p.title, week: p.week, decision: d ?? null };
   });
+}
+
+// The current files of one memory store, as last mirrored.
+export async function memoryFiles(store: string) {
+  const db = await getDb();
+  return db.select().from(memories).where(eq(memories.store, store)).orderBy(memories.path);
 }
 
 export async function fileByName(sid: string, name: string) {

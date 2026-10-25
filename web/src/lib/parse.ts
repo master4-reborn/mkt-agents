@@ -391,7 +391,12 @@ export function friendly(text: string, files: FileRef[]): string {
     if (f) return `[${f.title}](/drafts/${encodeURIComponent(name)})`;
     return whole.replace(/`/g, "");
   });
-  out = out.replace(/`?\/mnt\/session\/outputs\/[\w./-]*`?/g, "trang này").replace(/`?\/workspace\/[\w./-]*`?/g, "văn phòng");
+  const MEMORY: Record<string, [string, string]> = {
+    "bai-hoc": ["bài học", "doi-da-hoc"], "bai-tot": ["bài tốt", "doi-da-hoc"], "khach-hoi": ["khách hay hỏi", "doi-da-hoc"],
+    "quyet-dinh": ["sở thích của sếp", "so-thich"], "threads": ["điều ăn khách trên Threads", "so-thich"], "tu-cam": ["từ cấm chung", "so-thich"],
+  };
+  out = out.replace(/`?(?:\/mnt\/memory\/(?:sep|brand-[\w-]+)\/|(?:sep|brand-[\w-]+)\/)?(bai-hoc|bai-tot|khach-hoi|quyet-dinh|threads|tu-cam)\.md`?/g, (_, k: string) => `[${MEMORY[k][0]}](/brand#${MEMORY[k][1]})`);
+  out = out.replace(/`?\/mnt\/session\/outputs\/[\w./-]*`?/g, "trang này").replace(/`?\/workspace\/[\w./-]*`?/g, "văn phòng").replace(/`?\/mnt\/memory\/[\w./-]*`?/g, "bộ nhớ");
   return out;
 }
 

@@ -32,19 +32,77 @@ function officeIds(): { agent: string; env: string } {
   return { agent: agent!, env: env! };
 }
 
+// The boss's shared memory store, from the env or the lock file (declared as memory_stores/sep.yaml). Null until it is applied:
+// an office opened without it simply has no memory.
+export function memoryStoreId(): string | null {
+  if (process.env.OFFICE_MEMORY_ID) return process.env.OFFICE_MEMORY_ID;
+  const f = path.resolve(process.cwd(), "../claude-lock.json");
+  if (!fs.existsSync(f)) return null;
+  return JSON.parse(fs.readFileSync(f, "utf8")).resources["./memory_stores/sep.yaml"]?.id ?? null;
+}
+
+const SEP_INSTRUCTIONS = "Bộ nhớ chung của sếp, dùng cho mọi thương hiệu: quyet-dinh.md, threads.md, tu-cam.md. Đọc trước mỗi chu trình; chỉ trưởng nhóm ghi, theo đúng mục Bộ nhớ trong hướng dẫn.";
+const BRAND_INSTRUCTIONS = "Bộ nhớ riêng của thương hiệu này: bai-hoc.md, bai-tot.md, khach-hoi.md. Đọc trước mỗi chu trình; chỉ trưởng nhóm ghi, theo đúng mục Bộ nhớ trong hướng dẫn.";
+
+// brand-<slug>: ASCII from the boss's sentence (Vietnamese letters lose their marks) plus a short stamp,
+// so two brands never share a mount path under /mnt/memory/.
+export function brandSlug(sentence: string): string {
+  const ascii = sentence.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${ascii.slice(0, 24).replace(/-+$/, "") || "brand"}-${Date.now().toString(36).slice(-4)}`;
+}
+
+export type Office = { id: string; memoryStoreId: string | null; slug: string | null };
+
+async function createBrandStore(sentence: string): Promise<{ id: string; slug: string }> {
+  const slug = brandSlug(sentence);
+  const store = await anthropic().beta.memoryStores.create({
+    name: `brand-${slug}`,
+    description: `Memory of one brand (${sentence.slice(0, 200)}): bai-hoc.md (corrections from the boss, one per line), bai-tot.md (posts that scored, with the number), khach-hoi.md (recurring customer questions with the approved reply). Only the lead writes it.`,
+  });
+  return { id: store.id, slug };
+}
+
+function memoryResources(sep: string, brandStore: string) {
+  return [
+    { type: "memory_store" as const, memory_store_id: sep, access: "read_write" as const, instructions: SEP_INSTRUCTIONS },
+    { type: "memory_store" as const, memory_store_id: brandStore, access: "read_write" as const, instructions: BRAND_INSTRUCTIONS },
+  ];
+}
+
 const SETUP = "Set up the office. Create the folders listed in your instructions under /workspace, write /workspace/README.md (one line per folder: what goes in it and who writes it), and create agents/<name>/log.md for research, writer, qa and metrics, each with a header line. Do not start research; the next message names the brand.";
 
-// Opens a new office for a brand: a session with its own budget cap, told to set up and then to build the brand card.
-export async function openOffice(sentence: string, budgetUsd: number): Promise<string> {
+// Opens a new office for a brand: a session with its own budget cap and the two memory stores (the boss's shared one
+// and a new one for this brand), told to set up and then to build the brand card. Stores attach at creation only.
+export async function openOffice(sentence: string, budgetUsd: number): Promise<Office> {
+  const sep = memoryStoreId();
+  const store = sep ? await createBrandStore(sentence) : null;
+  const id = await createSession(sentence, budgetUsd, sep && store ? memoryResources(sep, store.id) : [], `New brand: ${sentence}`);
+  return { id, memoryStoreId: store?.id ?? null, slug: store?.slug ?? null };
+}
+
+// A stopped office (budget reached or terminated) gets a new session on the same memory stores, so nothing learned
+// is lost. The current card travels in the first message; a brand from before memory existed gets its store now.
+export async function reopenOffice(brand: { sentence: string; memoryStoreId: string | null; slug: string | null }, budgetUsd: number, card: string | null): Promise<Office> {
+  const sep = memoryStoreId();
+  const store = sep ? brand.memoryStoreId ? { id: brand.memoryStoreId, slug: brand.slug } : await createBrandStore(brand.sentence) : null;
+  const text = card
+    ? `Mở lại văn phòng cho thương hiệu đã có. Thẻ thương hiệu hiện tại ở dưới: ghi nguyên văn vào brand/BRAND.md, chép vào /mnt/session/outputs/BRAND.md, đọc bộ nhớ rồi báo cáo. Không chạy tuần mới.\n\n${card}`
+    : `New brand: ${brand.sentence}`;
+  const id = await createSession(brand.sentence, budgetUsd, sep && store ? memoryResources(sep, store.id) : [], text);
+  return { id, memoryStoreId: store?.id ?? null, slug: store?.slug ?? null };
+}
+
+async function createSession(sentence: string, budgetUsd: number, resources: ReturnType<typeof memoryResources> | [], second: string): Promise<string> {
   const ids = officeIds();
   const s = await anthropic().beta.sessions.create({
     agent: ids.agent,
     environment_id: ids.env,
     title: sentence.slice(0, 80),
     budget: { type: "limit", max_list_cost: { amount: String(Math.round(budgetUsd * 100)), currency: "USD" } },
+    ...(resources.length ? { resources } : {}),
     initial_events: [
       { type: "user.message", content: [{ type: "text", text: SETUP }] },
-      { type: "user.message", content: [{ type: "text", text: `New brand: ${sentence}` }] },
+      { type: "user.message", content: [{ type: "text", text: second }] },
     ],
   });
   return s.id;

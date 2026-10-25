@@ -4,7 +4,20 @@ import { pgTable, text, timestamp, serial } from "drizzle-orm/pg-core";
 export const brands = pgTable("brands", {
   id: text("id").primaryKey(), // Managed Agents session id
   sentence: text("sentence").notNull(), // what the boss said the brand is, shown until BRAND.md names it
+  memoryStoreId: text("memory_store_id"), // the brand's memory store; null for an office opened before memory existed
+  slug: text("slug"), // the store's name is brand-<slug>, mounted at /mnt/memory/brand-<slug>/
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// The current content of every memory file the team can read: the boss's shared store and each brand's own.
+// Mirrored from the API by the poll so pages render from the database; edits write through to the API.
+export const memories = pgTable("memories", {
+  id: text("id").primaryKey(), // Anthropic memory id
+  store: text("store").notNull(), // memory store id
+  path: text("path").notNull(), // /bai-hoc.md, /quyet-dinh.md, ...
+  content: text("content").notNull(),
+  sha256: text("sha256").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
 
 // One row per file version the office wrote to /mnt/session/outputs/.

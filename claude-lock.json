@@ -9,9 +9,9 @@
     "./agents/lead.md": {
       "kind": "agent",
       "id": "agent_01E6xhQUBSJBWEQWviNregfj",
-      "version": "4",
-      "hash": "4338b4905ab8bdfe2ddb604c721800bf",
-      "remote_hash": "94d86bfe9bedb88a990eb481ede028e9"
+      "version": "5",
+      "hash": "18c3fbec077a13a62d310ac8d0821035",
+      "remote_hash": "facfa357c544a6cef01e1dc2f2d4ab1a"
     },
     "./agents/metrics.md": {
       "kind": "agent",
@@ -23,9 +23,9 @@
     "./agents/qa.md": {
       "kind": "agent",
       "id": "agent_01SydpWcgxu3g3kVdt61CM6j",
-      "version": "1",
-      "hash": "098e2a1355abdf98523df95c0263e634",
-      "remote_hash": "344fa6cb824e8afbeadcbde87d51614e"
+      "version": "2",
+      "hash": "408509a84c62da9ab0ac4eb2c239826f",
+      "remote_hash": "4d882e5eeab50ef22fccc9cdd5fa85dd"
     },
     "./agents/research.md": {
       "kind": "agent",
@@ -37,15 +37,21 @@
     "./agents/writer.md": {
       "kind": "agent",
       "id": "agent_01GSSdB1WE3ZXG4Tv19d4Pvn",
-      "version": "1",
-      "hash": "43207f022414ac213f4dc9298c14aa12",
-      "remote_hash": "939dd5ffa834f314d5a95d36943aa0bd"
+      "version": "2",
+      "hash": "858e7287e3de9be710f7db6f37671af2",
+      "remote_hash": "c4dd31f919c83724835fa9d9b6dc180e"
     },
     "./environments/cloud.yaml": {
       "kind": "environment",
       "id": "env_01B7vVh4dJfAWr6hDgjcELwS",
       "hash": "a441d35ded185facb33362b079d3a40b",
       "remote_hash": "55ebfba58255e083902a0854691eaf97"
+    },
+    "./memory_stores/sep.yaml": {
+      "kind": "memory_store",
+      "id": "memstore_017MvNzHc1fD3M559YeNcY3K",
+      "hash": "e8557c491d61b6925cf39a964a296b25",
+      "remote_hash": "e8557c491d61b6925cf39a964a296b25"
     }
   }
 }

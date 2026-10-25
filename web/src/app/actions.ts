@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb, decisions } from "@/lib/db";
-import { say, weekLabel, officeStatus } from "@/lib/office";
+import { say, weekLabel, officeStatus, memoryStoreId } from "@/lib/office";
 import { requireAuth, login } from "@/lib/auth";
 import { sync, currentFiles, fileByName } from "@/lib/sync";
-import { allBrands, createBrand, requireBrand, setCurrentBrand } from "@/lib/brands";
+import { allBrands, createBrand, reopenBrand, requireBrand, setCurrentBrand } from "@/lib/brands";
+import { addLine, removeLine, bossLine, BRAND_FILES, SEP_FILES } from "@/lib/memory";
 
 // Orders go to the lead in Vietnamese so it answers in Vietnamese (it mirrors the boss's language).
 const WEEK_ORDER = (week: string, note: string) =>
@@ -72,6 +73,42 @@ export async function newBrand(formData: FormData) {
   await Promise.all([sync(b.id).catch(() => {}), officeStatus(b.id).catch(() => {})]);
   revalidatePath("/", "layout");
   redirect("/chat");
+}
+
+// The office stopped (budget reached or terminated): a new session on the same memory, same card, new budget.
+export async function reopen(formData: FormData) {
+  const b = await requireBrand();
+  const budget = Math.min(200, Math.max(1, Number(formData.get("budget")) || 30));
+  const nb = await reopenBrand(b, budget);
+  await setCurrentBrand(nb.id);
+  await Promise.all([sync(nb.id).catch(() => {}), officeStatus(nb.id).catch(() => {})]);
+  revalidatePath("/", "layout");
+  redirect("/chat");
+}
+
+// The boss writes a lesson straight into memory, no chat: this brand's bai-hoc.md or the shared quyet-dinh.md.
+export async function addLesson(formData: FormData) {
+  const b = await requireBrand();
+  const text = String(formData.get("text") ?? "").trim().slice(0, 300);
+  const shared = formData.get("scope") === "sep";
+  const store = shared ? memoryStoreId() : b.memoryStoreId;
+  if (!text || !store) return;
+  await addLine(store, shared ? "/quyet-dinh.md" : "/bai-hoc.md", bossLine(text));
+  revalidatePath("/brand");
+  redirect(shared ? "/brand#so-thich" : "/brand#doi-da-hoc");
+}
+
+// Deleting a line is how a wrong lesson is unlearned; the team no longer sees it from the next cycle.
+export async function forgetLine(formData: FormData) {
+  const b = await requireBrand();
+  const store = String(formData.get("store") ?? "");
+  const path = String(formData.get("path") ?? "");
+  const text = String(formData.get("text") ?? "");
+  const shared = store === memoryStoreId();
+  const allowed = (shared && SEP_FILES.some(([p]) => p === path)) || (store === b.memoryStoreId && BRAND_FILES.some(([p]) => p === path));
+  if (!store || !text || !allowed) return;
+  await removeLine(store, path, text);
+  revalidatePath("/brand");
 }
 
 export async function switchBrand(formData: FormData) {

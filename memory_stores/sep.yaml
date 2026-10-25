@@ -1,0 +1,5 @@
+# The boss's memory, shared by every brand's office (mounted at /mnt/memory/sep/).
+# Only the lead writes it; the write policy is the "Bộ nhớ" section of agents/lead.md.
+# Each brand gets its own store (brand-<slug>) from the web app when its office opens.
+name: sep
+description: The boss's shared memory, read by every brand's office. Three files, one fact per line, newest first - quyet-dinh.md (patterns in the boss's decisions), threads.md (what the numbers proved scores or fails on Threads, any brand), tu-cam.md (words and claims banned in every shop). Read before every cycle. Only the lead writes it, following the Bộ nhớ section of its instructions. Never store post text, prices, customer data or credentials here.

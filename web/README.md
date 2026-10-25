@@ -21,6 +21,10 @@ To use it from your phone on the same Wi-Fi, run `pnpm dev -H 0.0.0.0` and open 
 
 Each brand is one office session with the same team: its own workspace, conversation, posts and budget cap. The switcher at the top of every page changes which one you look at; `/brand/new` opens a new session from one sentence (the lead agent and environment come from `../claude-lock.json`, or `OFFICE_AGENT_ID` and `OFFICE_ENV_ID`).
 
+## Memory
+
+The team learns through two Managed Agents memory stores mounted into every office: the boss's shared store (`memory_stores/sep.yaml`, applied with `ant apply`, read from `../claude-lock.json` or `OFFICE_MEMORY_ID`) and one store per brand, created by the app when the office opens. Only the lead writes them, at the moments listed under "Bộ nhớ" in `agents/lead.md`. The Thương hiệu page shows every line (Đội đã học for the brand, Sở thích của sếp for all brands) with delete and add; the poll mirrors the stores into the `memories` table. A stopped office (budget reached) is reopened from that page on the same stores. An office opened before the store existed has no memory until it is reopened.
+
 ## Deploy (Vercel + Supabase, Singapore)
 
 1. Push this repo to GitHub.
@@ -28,6 +32,7 @@ Each brand is one office session with the same team: its own workspace, conversa
 3. Vercel: import the repo, **Root Directory = `web`**, region Singapore (`sin1`, set in `vercel.json`). Environment variables:
    - `ANTHROPIC_API_KEY`: an API key from the Console, in the same workspace as the agents (`claude-lock.json`, `origin.workspace_id`); the login profile does not exist on Vercel
    - `OFFICE_AGENT_ID`, `OFFICE_ENV_ID`: from `claude-lock.json` (`./agents/lead.md` and `./environments/cloud.yaml`), so the app can open a session for a new brand
+   - `OFFICE_MEMORY_ID`: from `claude-lock.json` (`./memory_stores/sep.yaml`), the shared memory store
    - `OFFICE_SESSION_ID`: optional, the session from `.office/session_id` to carry over as the first brand
    - `ANTHROPIC_WORKSPACE_ID`: for the Console link
    - `APP_PASSWORD`: the page's password
@@ -44,6 +49,6 @@ The production build has been checked against a real Postgres 17 (`next build` t
 | `/drafts` | Drafts by status; a draft page shows the post, Approve / Reject with a note, and the sources and QA checklist |
 | `/research` | Topics, pains and competitors per week; ask for one more post from a topic |
 | `/reports` | Enter each published post's numbers; the metrics report per week |
-| `/brand`, `/brand/new` | The current card, edits by sentence; open an office for another brand |
+| `/brand`, `/brand/new` | The current card, edits by sentence; what the team learned (per brand and for all brands), reopen a stopped office; open an office for another brand |
 | `/chat` | The conversation with the lead; send any order |
 | `/api/status` | Polled by the page: syncs new files and messages, returns status and cost |

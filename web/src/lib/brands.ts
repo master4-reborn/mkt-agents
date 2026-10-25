@@ -1,14 +1,14 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getDb, brands } from "./db";
 import { requireAuth } from "./auth";
-import { legacySessionId, openOffice, knownStatus } from "./office";
+import { legacySessionId, openOffice, reopenOffice, knownStatus } from "./office";
 import { currentFiles } from "./sync";
 import { brandName } from "./parse";
 
 // A brand is an office of its own: one Managed Agents session with the same team.
-export type Brand = { id: string; sentence: string; createdAt: Date };
+export type Brand = { id: string; sentence: string; memoryStoreId: string | null; slug: string | null; createdAt: Date };
 
 const COOKIE = "office_brand";
 
@@ -55,9 +55,24 @@ export async function setCurrentBrand(id: string): Promise<void> {
 
 // Opens a new office and remembers it as a brand. The team starts on the brand card at once.
 export async function createBrand(sentence: string, budgetUsd: number): Promise<Brand> {
-  const id = await openOffice(sentence, budgetUsd);
+  const o = await openOffice(sentence, budgetUsd);
   const db = await getDb();
-  const [row] = await db.insert(brands).values({ id, sentence }).returning();
+  const [row] = await db.insert(brands).values({ id: o.id, sentence, memoryStoreId: o.memoryStoreId, slug: o.slug }).returning();
+  return row;
+}
+
+// A new session for a brand whose office stopped, on the same memory stores. Everything synced from the old session
+// is re-stamped with the new id so the pages show one continuous history; the old event cursor is dropped.
+export async function reopenBrand(b: Brand, budgetUsd: number): Promise<Brand> {
+  const card = (await currentFiles(b.id, "brand"))[0]?.content ?? null;
+  const o = await reopenOffice(b, budgetUsd, card);
+  const db = await getDb();
+  for (const t of ["files", "decisions", "messages", "activity"]) {
+    await db.execute(sql`update ${sql.raw(t)} set brand = ${o.id} where brand = ${b.id}`);
+  }
+  await db.execute(sql`delete from settings where key in (${`${b.id}:events_cursor_v2`}, ${`${b.id}:threads`}, ${`${b.id}:office_status`})`);
+  await db.execute(sql`update settings set key = ${o.id} || substr(key, ${b.id.length + 1}) where key like ${`${b.id}:%`}`);
+  const [row] = await db.update(brands).set({ id: o.id, memoryStoreId: o.memoryStoreId ?? b.memoryStoreId, slug: o.slug ?? b.slug }).where(eq(brands.id, b.id)).returning();
   return row;
 }
 

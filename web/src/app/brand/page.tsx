@@ -1,17 +1,25 @@
 import Link from "next/link";
 import { requireBrand } from "@/lib/brands";
-import { currentFiles } from "@/lib/sync";
-import { knownStatus } from "@/lib/office";
+import { currentFiles, memoryFiles } from "@/lib/sync";
+import { knownStatus, memoryStoreId, type OfficeStatus } from "@/lib/office";
 import { SubmitButton } from "@/components/SubmitButton";
-import { IconPlus } from "@/components/Icons";
+import { IconPlus, IconX } from "@/components/Icons";
 import { parseFile, brandCard, md, type Field } from "@/lib/parse";
-import { askBrand } from "../actions";
+import { lessonLines, BRAND_FILES, SEP_FILES } from "@/lib/memory";
+import type { Brand as BrandRow } from "@/lib/brands";
+import { askBrand, addLesson, forgetLine, reopen } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function Brand() {
   const me = await requireBrand();
-  const [brandRows, status] = await Promise.all([currentFiles(me.id, "brand"), knownStatus(me.id)]);
+  const sep = memoryStoreId();
+  const [brandRows, status, mine, shared] = await Promise.all([
+    currentFiles(me.id, "brand"),
+    knownStatus(me.id),
+    me.memoryStoreId ? memoryFiles(me.memoryStoreId) : Promise.resolve([]),
+    sep ? memoryFiles(sep) : Promise.resolve([]),
+  ]);
   const brand = brandRows[0] ?? null;
   const p = brand ? parseFile(brand.name, brand.content) : null;
   const card = p ? brandCard(p.body) : [];
@@ -31,6 +39,7 @@ export default async function Brand() {
           <div className="text-sm text-[#6b3d53]">Bạn đã nói: “{me.sentence}”. {status.status === "running" ? "Mất khoảng 3 phút; trưởng nhóm sẽ hỏi lại bạn tối đa 3 câu." : "Xem trưởng nhóm đang cần gì ở bạn."}</div>
           <Link href="/chat" className="btn btn-accent">Xem trưởng nhóm</Link>
         </section>
+        <Reopen me={me} status={status} />
         <AddBrand />
       </div>
     );
@@ -63,8 +72,108 @@ export default async function Brand() {
         <SubmitButton className="btn btn-sm btn-dark" pendingLabel="Đang gửi…">Gửi cho đội</SubmitButton>
       </form>
 
+      {me.memoryStoreId ? (
+        <Memory
+          id="doi-da-hoc"
+          title="Đội đã học"
+          intro="Rút ra từ lời bạn trả lại bài, từ số liệu và từ khách hỏi; đội đọc lại trước mỗi bài. Dòng nào sai, xóa là đội quên từ chu trình sau."
+          store={me.memoryStoreId}
+          files={mine}
+          groups={BRAND_FILES}
+          scope="brand"
+          placeholder="Thêm bài học cho thương hiệu này, một câu"
+        />
+      ) : (
+        <Reopen me={me} status={status} />
+      )}
+      {sep && (
+        <Memory
+          id="so-thich"
+          title="Sở thích của sếp"
+          intro="Áp dụng cho mọi thương hiệu: cách bạn thích bài, điều số liệu đã chứng minh, từ cấm ở mọi shop. Sửa ở đây là sửa cho tất cả."
+          store={sep}
+          files={shared}
+          groups={SEP_FILES}
+          scope="sep"
+          placeholder="Thêm sở thích cho mọi thương hiệu, một câu"
+        />
+      )}
+      {me.memoryStoreId && <Reopen me={me} status={status} />}
+
       <AddBrand />
     </div>
+  );
+}
+
+type MemoryFile = { path: string; content: string };
+
+// One memory store as the boss sees it: its files as lists of lines, newest first, each line deletable, one input to add.
+function Memory({ id, title, intro, store, files, groups, scope, placeholder }: { id: string; title: string; intro: string; store: string; files: MemoryFile[]; groups: [string, string][]; scope: "brand" | "sep"; placeholder: string }) {
+  return (
+    <section id={id} className="flex flex-col gap-2 scroll-mt-4">
+      <h2 className="text-[15px] font-bold">{title}</h2>
+      <p className="text-[13px] leading-relaxed text-muted">{intro}</p>
+      <div className="overflow-hidden rounded-[18px] border border-line bg-card">
+        {groups.map(([path, label]) => {
+          const lines = lessonLines(files.find((f) => f.path === path)?.content ?? "");
+          return (
+            <div key={path}>
+              <div className="px-4 pb-1.5 pt-3 text-xs font-bold uppercase tracking-wider text-muted">{label} · {lines.length}</div>
+              {lines.length === 0 && <div className="row text-sm text-muted">chưa có</div>}
+              {lines.map((l) => (
+                <div key={l.text} className="row items-start">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    {l.date && <span className="text-[11px] text-muted">{dateLabel(l.date)}</span>}
+                    <span className="text-sm leading-relaxed">{l.rest}</span>
+                  </div>
+                  <form action={forgetLine} className="flex-none">
+                    <input type="hidden" name="store" value={store} />
+                    <input type="hidden" name="path" value={path} />
+                    <input type="hidden" name="text" value={l.text} />
+                    <SubmitButton className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted" iconOnly pendingLabel="Đang xóa…" ariaLabel="Xóa dòng này" spinnerSize={14}><IconX size={12} /></SubmitButton>
+                  </form>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      <form action={addLesson} className="flex gap-2">
+        <input type="hidden" name="scope" value={scope} />
+        <input name="text" className="input min-w-0 flex-1" placeholder={placeholder} required maxLength={300} autoComplete="off" />
+        <SubmitButton className="btn btn-dark flex-none" pendingLabel="Đang ghi…">Thêm</SubmitButton>
+      </form>
+    </section>
+  );
+}
+
+// "2026-10-25" → "25/10", "2026-W43" → "tuần 43".
+function dateLabel(d: string) {
+  const w = d.match(/^\d{4}-W(\d{2})$/);
+  if (w) return `tuần ${Number(w[1])}`;
+  const [, m, day] = d.split("-");
+  return `${day}/${m}`;
+}
+
+// A stopped office gets a new session on the same memory; an office from before memory existed gets memory this way.
+function Reopen({ me, status }: { me: BrandRow; status: OfficeStatus }) {
+  const stopped = status.status === "terminated" || (status.budgetUsd != null && status.listCostUsd >= status.budgetUsd);
+  if (!stopped && (me.memoryStoreId || status.status === "running")) return null;
+  return (
+    <form action={reopen} className="card flex flex-col gap-2">
+      <div className="text-[15px] font-bold">{stopped ? "Văn phòng đã dừng" : "Bật bộ nhớ cho thương hiệu này"}</div>
+      <div className="text-[13px] leading-relaxed text-muted">
+        {stopped
+          ? "Hết ngân sách hoặc phiên đã kết thúc. Mở lại thì đội giữ nguyên thẻ, bài và mọi điều đã học, chỉ có ngân sách mới."
+          : "Văn phòng này mở trước khi đội có bộ nhớ nên chưa học được gì. Mở lại để đội bắt đầu học; thẻ và bài cũ giữ nguyên."}
+      </div>
+      <select name="budget" className="input" defaultValue="30">
+        <option value="10">10 USD · khoảng 3 tuần</option>
+        <option value="30">30 USD · khoảng 10 tuần</option>
+        <option value="50">50 USD · khoảng 18 tuần</option>
+      </select>
+      <SubmitButton className="btn btn-accent" pendingLabel="Đang mở lại…">Mở lại văn phòng</SubmitButton>
+    </form>
   );
 }
 
