@@ -52,6 +52,12 @@
       "id": "memstore_017MvNzHc1fD3M559YeNcY3K",
       "hash": "e8557c491d61b6925cf39a964a296b25",
       "remote_hash": "e8557c491d61b6925cf39a964a296b25"
+    },
+    "./vaults/sep.yaml": {
+      "kind": "vault",
+      "id": "vlt_011CgNi8c4HLFqFKcAs8TTS6",
+      "hash": "db155f725ba531a9e10722bb9d139d40",
+      "remote_hash": "db155f725ba531a9e10722bb9d139d40"
     }
   }
 }

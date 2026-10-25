@@ -81,7 +81,7 @@ function BossBubble({ m, titleOf }: { m: Msg; titleOf: (n: string) => string }) 
   let sub: string | null = null;
   let x: RegExpMatchArray | null;
   if ((x = m.text.match(/^(?:Run week|Chạy tuần)\s+(\S+?)\.?\s*$/im))) {
-    kind = "Lệnh"; main = `Chạy tuần ${weekNo(x[1])}`;
+    kind = /Lệnh tự động theo lịch/.test(m.text) ? "Theo lịch" : "Lệnh"; main = `Chạy tuần ${weekNo(x[1])}`;
     const note = m.text.match(/(?:Boss's note for this week|Ghi chú của sếp cho tuần này):\s*([\s\S]*)$/i)?.[1]?.trim();
     sub = note && !/^(none|không có)$/i.test(note) ? `Ghi chú: ${note}` : null;
   } else if ((x = m.text.match(/^approve\s+(?:content\/drafts\/)?(\S+)/i))) {

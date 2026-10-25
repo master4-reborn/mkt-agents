@@ -6,6 +6,7 @@ export const brands = pgTable("brands", {
   sentence: text("sentence").notNull(), // what the boss said the brand is, shown until BRAND.md names it
   memoryStoreId: text("memory_store_id"), // the brand's memory store; null for an office opened before memory existed
   slug: text("slug"), // the store's name is brand-<slug>, mounted at /mnt/memory/brand-<slug>/
+  schedule: text("schedule"), // "mon" = the cron sends "Chạy tuần mới" every Monday morning; null = the boss runs weeks by hand
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

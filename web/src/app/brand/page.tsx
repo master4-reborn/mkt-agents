@@ -7,7 +7,7 @@ import { IconPlus, IconX } from "@/components/Icons";
 import { parseFile, brandCard, md, type Field } from "@/lib/parse";
 import { lessonLines, BRAND_FILES, SEP_FILES } from "@/lib/memory";
 import type { Brand as BrandRow } from "@/lib/brands";
-import { askBrand, addLesson, forgetLine, reopen } from "../actions";
+import { askBrand, addLesson, forgetLine, reopen, toggleSchedule } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +71,8 @@ export default async function Brand() {
         <input name="text" className="input" placeholder="Muốn đổi gì?" required />
         <SubmitButton className="btn btn-sm btn-dark" pendingLabel="Đang gửi…">Gửi cho đội</SubmitButton>
       </form>
+
+      <Schedule on={me.schedule === "mon"} />
 
       {me.memoryStoreId ? (
         <Memory
@@ -142,6 +144,33 @@ function Memory({ id, title, intro, store, files, groups, scope, placeholder }: 
         <input type="hidden" name="scope" value={scope} />
         <input name="text" className="input min-w-0 flex-1" placeholder={placeholder} required maxLength={300} autoComplete="off" />
         <SubmitButton className="btn btn-dark flex-none" pendingLabel="Đang ghi…">Thêm</SubmitButton>
+      </form>
+    </section>
+  );
+}
+
+// Monday mornings the cron sends "Chạy tuần mới" for this brand (vercel.json → /api/cron/week), once per week, never
+// while the team is busy or the office has stopped. Off by default: the boss runs weeks from the home page.
+function Schedule({ on }: { on: boolean }) {
+  const next = new Date();
+  next.setDate(next.getDate() + ((8 - next.getDay()) % 7 || 7));
+  const nextLabel = next.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+  const armed = !!process.env.CRON_SECRET;
+  return (
+    <section id="lich" className="card flex flex-col gap-2 scroll-mt-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[15px] font-bold">Lịch chạy tuần</div>
+        <span className={`chip ${on ? "chip-ok" : "chip-outline"}`}>{on ? "Đang bật" : "Đang tắt"}</span>
+      </div>
+      <div className="text-[13px] leading-relaxed text-muted">
+        {on
+          ? `Sáng thứ Hai, 8 đến 9 giờ, đội tự nghiên cứu và viết bài tuần mới; bạn chỉ cần vào duyệt. Lần tới: thứ Hai ${nextLabel}. Tuần nào bạn đã bấm Chạy tuần mới thì đội không chạy thêm.`
+          : "Đội chỉ chạy khi bạn bấm Chạy tuần mới ở trang Hôm nay. Bật lịch để sáng thứ Hai đội tự làm, 2 đến 3 USD mỗi tuần."}
+        {on && !armed && " Máy chủ này chưa cài lịch, nên lịch chưa chạy được."}
+      </div>
+      <form action={toggleSchedule}>
+        <input type="hidden" name="on" value={on ? "0" : "1"} />
+        <SubmitButton className={`btn btn-sm ${on ? "btn-soft" : "btn-dark"}`} pendingLabel="Đang lưu…">{on ? "Tắt lịch" : "Bật lịch sáng thứ Hai"}</SubmitButton>
       </form>
     </section>
   );

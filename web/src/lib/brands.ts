@@ -8,7 +8,7 @@ import { currentFiles } from "./sync";
 import { brandName } from "./parse";
 
 // A brand is an office of its own: one Managed Agents session with the same team.
-export type Brand = { id: string; sentence: string; memoryStoreId: string | null; slug: string | null; createdAt: Date };
+export type Brand = { id: string; sentence: string; memoryStoreId: string | null; slug: string | null; schedule: string | null; createdAt: Date };
 
 const COOKIE = "office_brand";
 
@@ -74,6 +74,12 @@ export async function reopenBrand(b: Brand, budgetUsd: number): Promise<Brand> {
   await db.execute(sql`update settings set key = ${o.id} || substr(key, ${b.id.length + 1}) where key like ${`${b.id}:%`}`);
   const [row] = await db.update(brands).set({ id: o.id, memoryStoreId: o.memoryStoreId ?? b.memoryStoreId, slug: o.slug ?? b.slug }).where(eq(brands.id, b.id)).returning();
   return row;
+}
+
+// Monday mornings the cron (`/api/cron/week`) sends this brand "Chạy tuần mới", or stops doing so.
+export async function setSchedule(id: string, on: boolean): Promise<void> {
+  const db = await getDb();
+  await db.update(brands).set({ schedule: on ? "mon" : null }).where(eq(brands.id, id));
 }
 
 export type BrandSummary = Brand & { name: string; waiting: number; running: boolean };

@@ -58,6 +58,7 @@ create index if not exists messages_brand_idx on messages (brand, created_at des
 create index if not exists activity_brand_idx on activity (brand, created_at desc);
 alter table brands add column if not exists memory_store_id text;
 alter table brands add column if not exists slug text;
+alter table brands add column if not exists schedule text;
 create table if not exists memories (
   id text primary key,
   store text not null,

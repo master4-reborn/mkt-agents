@@ -41,6 +41,20 @@ export function memoryStoreId(): string | null {
   return JSON.parse(fs.readFileSync(f, "utf8")).resources["./memory_stores/sep.yaml"]?.id ?? null;
 }
 
+// The boss's credential vault (declared as vaults/sep.yaml), attached to every office when it opens because
+// vault_ids is create-only. Empty until a connection (Notion, Gmail, Drive) is added; an empty vault costs nothing.
+export function vaultId(): string | null {
+  if (process.env.OFFICE_VAULT_ID) return process.env.OFFICE_VAULT_ID;
+  const f = path.resolve(process.cwd(), "../claude-lock.json");
+  if (!fs.existsSync(f)) return null;
+  return JSON.parse(fs.readFileSync(f, "utf8")).resources["./vaults/sep.yaml"]?.id ?? null;
+}
+
+// The Monday order, in Vietnamese so the lead answers in Vietnamese. `auto` marks a run the schedule started.
+export function weekOrder(week: string, note: string, auto = false): string {
+  return `Chạy tuần ${week}.\n\n${auto ? "(Lệnh tự động theo lịch sáng thứ Hai.)\n\n" : ""}Làm theo chu trình tuần: nghiên cứu, rồi viết 3 đến 5 bài, rồi QA, rồi chép các file của tuần vào /mnt/session/outputs/${week}/ và báo cáo.\n\nGhi chú của sếp cho tuần này: ${note || "không có"}`;
+}
+
 const SEP_INSTRUCTIONS = "Bộ nhớ chung của sếp, dùng cho mọi thương hiệu: quyet-dinh.md, threads.md, tu-cam.md. Đọc trước mỗi chu trình; chỉ trưởng nhóm ghi, theo đúng mục Bộ nhớ trong hướng dẫn.";
 const BRAND_INSTRUCTIONS = "Bộ nhớ riêng của thương hiệu này: bai-hoc.md, bai-tot.md, khach-hoi.md. Đọc trước mỗi chu trình; chỉ trưởng nhóm ghi, theo đúng mục Bộ nhớ trong hướng dẫn.";
 
@@ -94,12 +108,14 @@ export async function reopenOffice(brand: { sentence: string; memoryStoreId: str
 
 async function createSession(sentence: string, budgetUsd: number, resources: ReturnType<typeof memoryResources> | [], second: string): Promise<string> {
   const ids = officeIds();
+  const vault = vaultId();
   const s = await anthropic().beta.sessions.create({
     agent: ids.agent,
     environment_id: ids.env,
     title: sentence.slice(0, 80),
     budget: { type: "limit", max_list_cost: { amount: String(Math.round(budgetUsd * 100)), currency: "USD" } },
     ...(resources.length ? { resources } : {}),
+    ...(vault ? { vault_ids: [vault] } : {}),
     initial_events: [
       { type: "user.message", content: [{ type: "text", text: SETUP }] },
       { type: "user.message", content: [{ type: "text", text: second }] },

@@ -1,0 +1,5 @@
+# The boss's credential vault, attached to every brand's office when it opens (vault_ids is create-only).
+# This file only creates the container; credentials (Notion, Gmail, Drive tokens) are added with
+# `ant beta:vaults:credentials create` or the SDK and never live in the repo.
+type: vault
+display_name: Đội AI - kết nối của sếp

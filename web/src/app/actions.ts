@@ -3,15 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb, decisions } from "@/lib/db";
-import { say, weekLabel, officeStatus, memoryStoreId } from "@/lib/office";
+import { say, weekLabel, weekOrder, officeStatus, memoryStoreId } from "@/lib/office";
 import { requireAuth, login } from "@/lib/auth";
 import { sync, currentFiles, fileByName } from "@/lib/sync";
-import { allBrands, createBrand, reopenBrand, requireBrand, setCurrentBrand } from "@/lib/brands";
+import { allBrands, createBrand, reopenBrand, requireBrand, setCurrentBrand, setSchedule } from "@/lib/brands";
 import { addLine, removeLine, bossLine, BRAND_FILES, SEP_FILES } from "@/lib/memory";
 
 // Orders go to the lead in Vietnamese so it answers in Vietnamese (it mirrors the boss's language).
-const WEEK_ORDER = (week: string, note: string) =>
-  `Chạy tuần ${week}.\n\nLàm theo chu trình tuần: nghiên cứu, rồi viết 3 đến 5 bài, rồi QA, rồi chép các file của tuần vào /mnt/session/outputs/${week}/ và báo cáo.\n\nGhi chú của sếp cho tuần này: ${note || "không có"}`;
 
 // Sends an order to one brand's lead, then pulls that office once so the page that renders next already shows
 // the order and the team's new status. Pages themselves never wait on the office.
@@ -24,7 +22,15 @@ async function order(sid: string, text: string) {
 export async function runWeek(formData: FormData) {
   const b = await requireBrand();
   const note = String(formData.get("note") ?? "").trim();
-  await order(b.id, WEEK_ORDER(weekLabel(), note));
+  await order(b.id, weekOrder(weekLabel(), note));
+}
+
+// Monday mornings the team starts the week by itself (the cron in vercel.json), or waits for you.
+export async function toggleSchedule(formData: FormData) {
+  const b = await requireBrand();
+  await setSchedule(b.id, formData.get("on") === "1");
+  revalidatePath("/", "layout");
+  redirect("/brand#lich");
 }
 
 // The numbers of the posts you published, one row per post, sent as CSV so metrics can read them (rule 4: no made-up numbers).
