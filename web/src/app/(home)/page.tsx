@@ -49,7 +49,7 @@ export default async function Home() {
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
         <DesktopOnly>
-          <section aria-label="Văn phòng 3D" className="hidden min-w-0 lg:block">
+          <section aria-label="Văn phòng 3D" className="hidden min-w-0 lg:sticky lg:top-4 lg:block lg:h-[calc(100vh-176px)] lg:min-h-[520px]">
             <OfficeScene compact team={team.map((t) => ({ ...t, since: t.since ? t.since.toISOString() : null }))} waiting={waiting.length} week={week} />
           </section>
         </DesktopOnly>
