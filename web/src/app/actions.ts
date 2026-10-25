@@ -175,11 +175,35 @@ export async function writeTopic(formData: FormData) {
   redirect("/chat");
 }
 
-export async function sendMessage(formData: FormData) {
+export type SendResult = { ok: true } | { ok: false; error: string };
+
+// Returns why a send failed instead of throwing: a thrown error reaches the page as a blank message in production.
+export async function sendMessage(formData: FormData): Promise<SendResult> {
   const b = await requireBrand();
   const text = String(formData.get("text") ?? "").trim();
-  if (!text) return;
-  await order(b.id, text);
+  if (!text) return { ok: true };
+  try {
+    await order(b.id, text);
+    return { ok: true };
+  } catch (e) {
+    console.error("sendMessage failed", b.id, e);
+    return { ok: false, error: sendError(e) };
+  }
+}
+
+// One line for the boss: what went wrong in Vietnamese, then the raw code so it can be reported.
+function sendError(e: unknown): string {
+  const err = e as { status?: number; message?: string };
+  const status = typeof err?.status === "number" ? err.status : null;
+  const raw = (err?.message ?? String(e)).replace(/\s+/g, " ").slice(0, 120);
+  const why =
+    status === 401 || status === 403 ? "khoá API bị từ chối"
+    : status === 404 ? "không tìm thấy văn phòng này"
+    : status === 400 || status === 409 ? "văn phòng không nhận lệnh lúc này"
+    : status === 429 ? "quá nhiều yêu cầu, thử lại sau"
+    : status && status >= 500 ? "máy chủ Anthropic lỗi"
+    : "không gọi được Anthropic";
+  return `${why} (${status ?? "mạng"}: ${raw})`;
 }
 
 export async function refresh() {

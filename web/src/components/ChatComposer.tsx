@@ -10,7 +10,7 @@ import { SubmitButton } from "./SubmitButton";
 // and settles into the conversation when the office has it. If it fails, the text comes back to the box.
 export function ChatComposer({ waiting, running }: { waiting: number; running: boolean }) {
   const [pending, setPending] = useState<string | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
+  const [failed, setFailed] = useState<{ text: string; why: string | null } | null>(null);
   const [, start] = useTransition();
   const input = useRef<HTMLInputElement>(null);
 
@@ -25,9 +25,10 @@ export function ChatComposer({ waiting, running }: { waiting: number; running: b
       try {
         const fd = new FormData();
         fd.set("text", text);
-        await sendMessage(fd);
+        const r = await sendMessage(fd);
+        if (!r.ok) setFailed({ text, why: r.error });
       } catch {
-        setFailed(text);
+        setFailed({ text, why: null });
       } finally {
         setPending(null);
       }
@@ -45,9 +46,9 @@ export function ChatComposer({ waiting, running }: { waiting: number; running: b
         </div>
       )}
       {failed && (
-        <div className="flex items-center gap-2 self-end rounded-[14px] border border-bad-soft bg-bad-soft px-3 py-2 text-[13px] text-bad">
-          Chưa gửi được.
-          <button type="button" className="font-semibold underline" onClick={() => { if (input.current) input.current.value = failed; setFailed(null); input.current?.focus(); }}>Lấy lại tin</button>
+        <div className="flex max-w-[82%] flex-wrap items-center gap-2 self-end rounded-[14px] border border-bad-soft bg-bad-soft px-3 py-2 text-[13px] text-bad">
+          <span>Chưa gửi được{failed.why ? `: ${failed.why}` : "."}</span>
+          <button type="button" className="font-semibold underline" onClick={() => { if (input.current) input.current.value = failed.text; setFailed(null); input.current?.focus(); }}>Lấy lại tin</button>
         </div>
       )}
 

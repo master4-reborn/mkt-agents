@@ -22,21 +22,28 @@ function useSend() {
     if (pending || !text.trim()) return;
     setPending(true);
     setNote(null);
+    if (timer.current) clearTimeout(timer.current);
     start(async () => {
+      let ok = false;
       try {
         const fd = new FormData();
         fd.set("text", text.trim());
-        await sendMessage(fd);
-        setNote({ ok: true, text: "Đã gửi, trưởng nhóm sẽ trả lời ở bong bóng" });
-        onOk?.();
-        router.refresh();
+        const r = await sendMessage(fd);
+        if (r.ok) {
+          ok = true;
+          setNote({ ok: true, text: "Đã gửi, trưởng nhóm sẽ trả lời ở bong bóng" });
+          onOk?.();
+          router.refresh();
+        } else {
+          setNote({ ok: false, text: `Chưa gửi được: ${r.error}` });
+        }
       } catch {
         setNote({ ok: false, text: "Chưa gửi được, thử lại" });
       } finally {
         setPending(false);
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => setNote(null), 6000);
       }
+      // A success note fades; a failure stays until the next try, so the reason can be read and reported.
+      if (ok) timer.current = setTimeout(() => setNote(null), 6000);
     });
   };
   return { send, pending, note };
