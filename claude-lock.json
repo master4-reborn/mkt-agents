@@ -9,9 +9,9 @@
     "./agents/lead.md": {
       "kind": "agent",
       "id": "agent_01E6xhQUBSJBWEQWviNregfj",
-      "version": "10",
-      "hash": "6cbf3503b02682ca366bba93e8a92457",
-      "remote_hash": "3950a23f1c9068ddb1b9a866c2f7622b"
+      "version": "11",
+      "hash": "af3115f846eba79bf873e0e6e25a69f6",
+      "remote_hash": "f029252c6c83dd590b7ce0bb113a6340"
     },
     "./agents/metrics.md": {
       "kind": "agent",
@@ -33,6 +33,13 @@
       "version": "1",
       "hash": "ca6be2bb57a8f76bed056d7a6893d670",
       "remote_hash": "d53765baa8342c97b1a7fa14d154fbe1"
+    },
+    "./agents/scout.md": {
+      "kind": "agent",
+      "id": "agent_019MrCHKYBr9mnDQ5wvaf8pX",
+      "version": "1",
+      "hash": "2c3ef48d6ffdc541698c37e630c2f3bb",
+      "remote_hash": "ffbc57497ae1d4f9cfce5e2faea4ee9e"
     },
     "./agents/writer.md": {
       "kind": "agent",

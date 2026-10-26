@@ -41,6 +41,17 @@ The team reads the internet by default. From the Thương hiệu page the boss c
 - Drive (`src/lib/drive.ts`, no library: a signed JWT swapped for a one-hour token): the boss pastes a service account's JSON key and shares folders with the account's address; the app checks the key with one list call. Per brand, one folder the team reads (tools `drive_list`, `drive_read`: Docs, Sheets and Slides are exported as text, plain files downloaded). Read only by design: service accounts have no Drive storage of their own.
 - `agents/lead.md` has a "Nguồn ngoài" section telling the lead when to read Notion, Gmail and Drive; apply it with `ant apply agents` so new offices get it; an office already open gets the new text with its next order.
 
+## Skills (kỹ năng)
+
+A scout (`agents/scout.md`, Sonnet 5.5, web search and fetch only) looks for proven marketing practice and proposes one skill per run; nothing reaches the team until the boss approves it (`src/lib/skills.ts`).
+
+- Scopes: "shared" (every brand, the boss's store) or one brand (that brand's store; the scout also reads its card). Each run is its own session with a $4 budget and an outcome rubric (up to three grader rounds); it writes `skill.md` and `review.md` to its outputs. The poll collects them when the session stops (`scout_runs`), turns them into a proposed version and archives the session.
+- `skills` and `skill_versions`: numbered versions, exactly one current per active skill; proposed → current → superseded, rejected kept with the boss's reason (the next run reads it). Approving or restoring makes a new number; approved text never changes. A newer proposal for the same skill replaces the older one.
+- Delivery: the current text of each active skill goes to `/ky-nang/<slug>.md` in the scope's memory store, with `/ky-nang/index.md`. Every running office reads memory live; the lead's "Kỹ năng" section says when to read the index and how to hand a skill to an employee. The poll puts the files back if they drift from the database.
+- Pages: Thương hiệu has "Kỹ năng riêng" (under Đội đã học) and "Kỹ năng chung" (under Sở thích của sếp) with proposals, skills in use, the "Tìm kỹ năng mới" button and the schedule; `/brand/skill/[id]` shows one version (rules with their source counts, QA checks, examples, sources, warnings) with Duyệt, Sửa quy tắc rồi duyệt, Bỏ, Ngừng dùng, Dùng lại bản này and the history. Hôm nay lists waiting proposals as a task.
+- Schedule: per scope, Tắt / 2 tuần một lần / Mỗi tháng (default: shared monthly, brands off). `/api/cron/scout` runs daily at 02:00 UTC and starts each scope that is due, unless that scope is still running, still has a proposal waiting, or the month's scout spend would pass $20 (a running run counts at its $4 cap). The button ignores the schedule and the ceiling.
+- The scout agent id comes from `OFFICE_SCOUT_ID`, or is found by name (`marketing-scout`) once and kept in `settings`.
+
 ## Deploy (Vercel + Supabase, Singapore)
 
 1. Push this repo to GitHub.

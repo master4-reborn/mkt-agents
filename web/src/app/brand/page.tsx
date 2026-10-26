@@ -9,6 +9,8 @@ import { lessonLines, BRAND_FILES, SEP_FILES } from "@/lib/memory";
 import type { Brand as BrandRow } from "@/lib/brands";
 import { askBrand, addLesson, forgetLine, reopen, toggleSchedule } from "../actions";
 import { Sources } from "./Sources";
+import { Skills } from "./Skills";
+import { SHARED } from "@/lib/skills";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +93,7 @@ export default async function Brand() {
       ) : (
         <Reopen me={me} status={status} />
       )}
+      {me.memoryStoreId && <Skills scope={me.id} />}
       {sep && (
         <Memory
           id="so-thich"
@@ -103,6 +106,7 @@ export default async function Brand() {
           placeholder="Thêm sở thích cho mọi thương hiệu, một câu"
         />
       )}
+      {sep && <Skills scope={SHARED} />}
       {me.memoryStoreId && <Reopen me={me} status={status} />}
 
       <AddBrand />

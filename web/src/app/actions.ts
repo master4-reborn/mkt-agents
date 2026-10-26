@@ -14,6 +14,7 @@ import { gmailCheckLabel, gmailLabels } from "@/lib/gmail";
 import { mailNews, refreshMail } from "@/lib/mailbox";
 import { getDatabase, getDataSource, getPage, notionId, notionMe } from "@/lib/notion";
 import { ensureDatabases, pushMirrors } from "@/lib/mirror";
+import { approveVersion, rejectVersion, restoreVersion, setScoutSchedule, setSkillActive, startScout, versionWithSkill, SHARED, type Schedule } from "@/lib/skills";
 
 // Orders go to the lead in Vietnamese so it answers in Vietnamese (it mirrors the boss's language).
 
@@ -411,4 +412,69 @@ export async function retryAttach() {
   await attach(b.id).catch(() => {});
   revalidatePath("/", "layout");
   redirect("/brand/notion");
+}
+
+// ---- Skills: the scout proposes, the boss decides. A scope is "shared" or the current brand; nothing else is accepted.
+
+async function scopeOf(raw: FormDataEntryValue | null): Promise<string> {
+  const b = await requireBrand();
+  return raw === SHARED ? SHARED : b.id;
+}
+
+const skillsAnchor = (scope: string) => (scope === SHARED ? "/brand#ky-nang-chung" : "/brand#ky-nang-rieng");
+
+export async function findSkill(formData: FormData) {
+  const scope = await scopeOf(formData.get("scope"));
+  await startScout(scope, String(formData.get("focus") ?? "").trim().slice(0, 200), "button");
+  revalidatePath("/", "layout");
+  redirect(skillsAnchor(scope));
+}
+
+export async function setSkillSchedule(formData: FormData) {
+  const scope = await scopeOf(formData.get("scope"));
+  const value = String(formData.get("value") ?? "");
+  if (["off", "2w", "month"].includes(value)) await setScoutSchedule(scope, value as Schedule);
+  revalidatePath("/brand");
+  redirect(skillsAnchor(scope));
+}
+
+// The skill a version belongs to must be shared or this brand's: a link from another brand does nothing here.
+async function ownVersion(formData: FormData) {
+  const b = await requireBrand();
+  const id = Number(formData.get("id"));
+  const row = Number.isInteger(id) ? await versionWithSkill(id) : null;
+  return row && (row.s.scope === SHARED || row.s.scope === b.id) ? row : null;
+}
+
+export async function approveSkill(formData: FormData) {
+  const row = await ownVersion(formData);
+  if (!row) redirect("/brand");
+  const rules = formData.get("rules");
+  await approveVersion(row.v.id, { rules: rules == null ? undefined : String(rules), receivers: formData.getAll("receiver").map(String) });
+  revalidatePath("/", "layout");
+  redirect(`/brand/skill/${row.v.id}`);
+}
+
+export async function rejectSkill(formData: FormData) {
+  const row = await ownVersion(formData);
+  if (!row) redirect("/brand");
+  await rejectVersion(row.v.id, String(formData.get("reason") ?? "").slice(0, 300));
+  revalidatePath("/", "layout");
+  redirect(skillsAnchor(row.s.scope));
+}
+
+export async function restoreSkill(formData: FormData) {
+  const row = await ownVersion(formData);
+  if (!row) redirect("/brand");
+  const id = await restoreVersion(row.v.id);
+  revalidatePath("/", "layout");
+  redirect(`/brand/skill/${id ?? row.v.id}`);
+}
+
+export async function toggleSkill(formData: FormData) {
+  const row = await ownVersion(formData);
+  if (!row) redirect("/brand");
+  await setSkillActive(row.s.id, formData.get("on") === "1");
+  revalidatePath("/", "layout");
+  redirect(`/brand/skill/${row.v.id}`);
 }

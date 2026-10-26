@@ -10,7 +10,8 @@ export type Task =
   | { kind: "metrics"; week: string; posts: number }
   | { kind: "lead"; text: string }
   | { kind: "key"; what: string; error: string; href: string } // a connected storage rejected its key
-  | { kind: "mail"; n: number; label: string }; // unread mail under the brand's Gmail label, for the lead to read
+  | { kind: "mail"; n: number; label: string } // unread mail under the brand's Gmail label, for the lead to read
+  | { kind: "skill"; n: number; id: number; title: string }; // skills the scout proposed, waiting for the boss
 
 export type Reply = { post: string; status: string | null; reply: string };
 

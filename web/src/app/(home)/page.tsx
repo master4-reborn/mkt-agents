@@ -18,6 +18,7 @@ import { connection } from "@/lib/connections";
 import { mailNews } from "@/lib/mailbox";
 import { savedFileIds } from "@/lib/mirror";
 import { brandNotion } from "@/lib/connections";
+import { pendingProposals, reviewDoc, SHARED } from "@/lib/skills";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +33,13 @@ export default async function Home() {
   const replies = replyFiles.map((r) => { const p = parseFile(r.name, r.content); return { post: String(p.data.post ?? ""), status: r.status, reply: replyParts(p.body).reply }; });
   const waiting = drafts.filter((d) => d.status === "ready");
   const lastReport = [...convo].reverse().find((m) => m.role === "lead" && parseReport(m.text)) ?? null;
-  const [notion, gmail, news] = await Promise.all([connection("notion"), connection("gmail"), mailNews(sid)]);
+  const [notion, gmail, news, proposals] = await Promise.all([connection("notion"), connection("gmail"), mailNews(sid), pendingProposals([SHARED, sid])]);
   const tasks: Task[] = [
     ...(notion?.status === "error" ? [{ kind: "key" as const, what: "Notion", error: notion.error ?? "lỗi", href: "/brand/notion" }] : []),
     ...(gmail?.status === "error" ? [{ kind: "key" as const, what: "Gmail", error: gmail.error ?? "lỗi", href: "/brand/gmail" }] : []),
     ...(gmail && gmail.status === "ok" && news && news.n > 0 ? [{ kind: "mail" as const, n: news.n, label: news.label }] : []),
     ...userTasks(drafts, lastReport, files, reports, replies),
+    ...(proposals.length ? [{ kind: "skill" as const, n: proposals.length, id: proposals[0].v.id, title: reviewDoc(proposals[0].v.review).title || proposals[0].s.title }] : []),
   ];
   const working = new Set(team.filter((t) => t.state === "working").map((t) => t.agent));
   const run = lastRun(convo);
@@ -192,6 +194,17 @@ function TaskRow({ task }: { task: Task }) {
         </div>
         <SubmitButton className="chip chip-accent flex-none" pendingLabel="Đang gửi lệnh…" spinnerSize={12}>Đọc thư</SubmitButton>
       </form>
+    );
+  if (task.kind === "skill")
+    return (
+      <Link href={`/brand/skill/${task.id}`} className="flex items-center gap-3 border-b border-line-soft p-3.5 text-ink last:border-b-0">
+        {circle}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="text-sm font-semibold">{task.n} kỹ năng mới chờ duyệt</div>
+          <div className="truncate text-xs text-muted">{task.title} · trinh sát tìm trên mạng, có nguồn</div>
+        </div>
+        <IconChevron className="text-faint" />
+      </Link>
     );
   if (task.kind === "reply")
     return (

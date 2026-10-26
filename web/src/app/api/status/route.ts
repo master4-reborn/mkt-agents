@@ -6,6 +6,7 @@ import { allBrands, currentBrand } from "@/lib/brands";
 import { retryPending } from "@/lib/connections";
 import { pushMirrors } from "@/lib/mirror";
 import { refreshMail } from "@/lib/mailbox";
+import { collectScoutRuns, deliverSkills, SHARED } from "@/lib/skills";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,9 @@ export async function GET() {
   ]);
   // Phase 5: copies of new deliveries go to the boss's Notion, and an office whose team was busy gets the endpoint now.
   await Promise.all([pushMirrors(b.id).catch(() => {}), retryPending().catch(() => {}), refreshMail(b.id).catch(() => {})]);
+  // Skills: a scout run that stopped becomes a proposal, and memory is put back to the approved text if it drifted.
+  await collectScoutRuns().catch(() => {});
+  await Promise.all([deliverSkills(SHARED).catch(() => {}), deliverSkills(b.id).catch(() => {})]);
   const s = await officeStatus(b.id);
   return NextResponse.json({ ...s, stopReason: await lastStopReason(b.id) });
 }

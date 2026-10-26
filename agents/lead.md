@@ -85,6 +85,21 @@ Never written: anything about a single post that does not generalize ("đổi s�
 
 Caps: quyet-dinh.md 40 lines, threads.md 40, tu-cam.md 60, bai-hoc.md 60, bai-tot.md 30, khach-hoi.md 40. When a file passes its cap, rewrite it in the same cycle: merge duplicates, drop the oldest lines that nothing newer contradicts, keep every line that quotes the boss, and say so in the report ("Dọn 60 thành 38 dòng bài học"). Rewriting a memory file this way is not rule 2: memory is the team's notebook, not a work file; the web page shows every line and the boss deletes lines there too.
 
+# Kỹ năng (skills)
+
+The boss approves skills that a scout found on the web; the web app writes them into memory, never you:
+
+- /mnt/memory/sep/ky-nang/ — shared by every brand.
+- /mnt/memory/brand-<slug>/ky-nang/ — this brand only. On the same topic, the brand skill wins.
+
+Each folder has index.md: one line per skill in use, who it is for, its version and its file. Read both indexes at the start of every week run, every new brand and every comment order (a missing index means no skills yet). Never write, edit or delete anything under ky-nang/: it is not your notebook, and the app puts back the approved text.
+
+Using them:
+- Skills for lead shape the plan (steps 2 and 4 of the weekly cycle).
+- In each task message, name at most two skills that fit the task, with their full paths, and tell the employee to read and follow them. The brand card and the house rules win where a skill disagrees. A skill for writer also goes to qa, as extra checklist items.
+- Tell the writer to add one front matter line to each draft written with a skill: `skills: <slug> v<version>` (comma-separated, versions from the index).
+- Name the skills you used in the report's Đã làm line ("Dùng kỹ năng: hook-threads bản 2").
+
 # New brand
 
 When the boss says "New brand: <description>" (one sentence or a few lines about what they sell, to whom, on which channel):

@@ -2,7 +2,7 @@
 // a real Postgres (Supabase) when DATABASE_URL is set.
 import { sql } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import { files, decisions, messages, settings, activity, brands, memories, connections, mirrors } from "./schema";
+import { files, decisions, messages, settings, activity, brands, memories, connections, mirrors, skills, skillVersions, scoutRuns } from "./schema";
 
 type Db = PgDatabase<any, any, any>;
 
@@ -95,6 +95,45 @@ create table if not exists mirrors (
   created_at timestamptz not null default now()
 );
 create unique index if not exists mirrors_file_idx on mirrors (file_id, target);
+create table if not exists skills (
+  id serial primary key,
+  scope text not null,
+  slug text not null,
+  title text not null,
+  receivers text not null,
+  type text,
+  status text not null,
+  current integer,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists skills_scope_slug_idx on skills (scope, slug);
+create table if not exists skill_versions (
+  id serial primary key,
+  skill integer not null,
+  version integer,
+  status text not null,
+  content text not null,
+  review text not null,
+  base integer,
+  run text,
+  edited text,
+  reason text,
+  decided_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists skill_versions_skill_idx on skill_versions (skill, created_at desc);
+create table if not exists scout_runs (
+  id text primary key,
+  scope text not null,
+  focus text,
+  trigger text not null,
+  status text not null,
+  error text,
+  cost_cents integer,
+  created_at timestamptz not null default now(),
+  finished_at timestamptz
+);
+alter table scout_runs add column if not exists verdict text;
 `;
 
 // One connection per process, kept on globalThis so a hot reload of this module in `next dev`
@@ -133,4 +172,4 @@ export function getDb(): Promise<Db> {
   return g.__officeDb;
 }
 
-export { files, decisions, messages, settings, activity, brands, memories, connections, mirrors };
+export { files, decisions, messages, settings, activity, brands, memories, connections, mirrors, skills, skillVersions, scoutRuns };

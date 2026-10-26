@@ -13,6 +13,7 @@ Spec (final v1): https://claude.ai/artifact/QPnbQhz1UXPs6nY5vqMHYG
 | `agents/writer.md` | Writer. Drafts into `content/drafts/`. No web, no bash. |
 | `agents/qa.md` | QA-QC. Sets `status: ready` or `needs-fix` plus a checklist. No web, no bash. |
 | `agents/metrics.md` | Metrics. Turns a CSV in `reports/` into `reports/<week>.md`. |
+| `agents/scout.md` | Skill scout, outside the team (not in the lead's roster). Searches the web and proposes one skill per run for the boss to approve; the web app starts it and delivers approved skills into memory. |
 | `environments/cloud.yaml` | The sandbox container (Anthropic cloud, unrestricted egress for now). |
 | `HOUSE_RULES.md` | The eight nội quy. Master copy; each agent prompt repeats the ones that bind it. |
 | `brand/BRAND.md` | The brand card template. You do not have to fill it: `scripts/new-brand.sh "<one sentence>"` makes the team write it. A filled copy here is mounted on start instead. |

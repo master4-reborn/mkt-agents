@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, serial, integer } from "drizzle-orm/pg-core";
 
 // One brand = one office session (same team, its own workspace, conversation and budget).
 export const brands = pgTable("brands", {
@@ -96,4 +96,47 @@ export const mirrors = pgTable("mirrors", {
   status: text("status").notNull(), // ok | error
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// A skill the scout proposed: one row per skill and scope; its texts are numbered versions in skill_versions, and exactly
+// one is current while the skill is active. Offices read only the current text, which the app writes into memory.
+export const skills = pgTable("skills", {
+  id: serial("id").primaryKey(),
+  scope: text("scope").notNull(), // "shared" for every brand, or one brand's session id
+  slug: text("slug").notNull(), // ASCII; the memory file is ky-nang/<slug>.md
+  title: text("title").notNull(),
+  receivers: text("receivers").notNull(), // comma-separated employees: writer,qa
+  type: text("type"), // writing | quality | research | numbers | planning
+  status: text("status").notNull(), // new (nothing approved yet) | active | retired
+  current: integer("current"), // the current version number, null until one is approved
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const skillVersions = pgTable("skill_versions", {
+  id: serial("id").primaryKey(),
+  skill: integer("skill").notNull(),
+  version: integer("version"), // numbered on approval or restore; null while proposed and when rejected
+  status: text("status").notNull(), // proposed | current | superseded | rejected
+  content: text("content").notNull(), // the skill file the team reads
+  review: text("review").notNull(), // the scout's review file (why now, changes, warnings); empty for a restore
+  base: integer("base"), // the version the proposal started from
+  run: text("run"), // the scout session that proposed it
+  edited: text("edited"), // "1" when the boss edited the rules before approving
+  reason: text("reason"), // the boss's reason to reject, or what a restore brought back
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// One scout session per run, from the button or the schedule. The poll collects its two files when it stops.
+export const scoutRuns = pgTable("scout_runs", {
+  id: text("id").primaryKey(), // session id
+  scope: text("scope").notNull(),
+  focus: text("focus"),
+  trigger: text("trigger").notNull(), // button | schedule
+  status: text("status").notNull(), // running | done | failed
+  error: text("error"),
+  verdict: text("verdict"), // the grader's last word: satisfied | max_iterations_reached | …
+  costCents: integer("cost_cents"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
 });

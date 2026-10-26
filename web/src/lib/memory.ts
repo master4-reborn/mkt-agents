@@ -1,4 +1,5 @@
 import { anthropic } from "./anthropic";
+import { eq } from "drizzle-orm";
 import { getDb, memories } from "./db";
 
 // The team's notebook: six small text files, one fact per line, newest first. The lead writes them during its work;
@@ -56,4 +57,19 @@ export function addLine(store: string, path: string, line: string): Promise<void
 
 export function removeLine(store: string, path: string, text: string): Promise<void> {
   return rewrite(store, path, (content) => content.split("\n").filter((t) => t !== text).join("\n"));
+}
+
+// Whole files the app owns (the approved skills under /ky-nang/): written as given, or removed.
+export function setFile(store: string, path: string, content: string): Promise<void> {
+  return rewrite(store, path, () => content);
+}
+
+export async function deleteFile(store: string, path: string): Promise<void> {
+  const client = anthropic();
+  for await (const m of client.beta.memoryStores.memories.list(store, { view: "basic" })) {
+    if (m.type !== "memory" || m.path !== path) continue;
+    await client.beta.memoryStores.memories.delete(m.id, { memory_store_id: store });
+    const db = await getDb();
+    await db.delete(memories).where(eq(memories.id, m.id));
+  }
 }
