@@ -20,7 +20,7 @@ Spec (final v1): https://claude.ai/artifact/QPnbQhz1UXPs6nY5vqMHYG
 | `scripts/` | `start-office.sh`, `new-brand.sh`, `update-brand.sh`, `run-week.sh`, `say.sh`, `watch.sh` (see below). |
 | `claude-lock.json` | Written by `ant apply`; maps each file to its platform ID. Commit it. |
 
-Agent frontmatter = the Managed Agents agent config; the Markdown body = its system prompt. Edit a file, run `ant apply` again, and the agent gets a new version.
+Agent frontmatter = the Managed Agents agent config; the Markdown body = its system prompt. Edit a file, run `ant apply` again, and the agent gets a new version. A running office keeps the version it opened with; the web app sends the lead's new text along with that office's next order (workers are not updated this way).
 
 ## Run it
 

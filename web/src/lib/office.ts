@@ -164,10 +164,38 @@ export async function knownStatus(sid: string): Promise<OfficeStatus> {
   return (await cachedStatus(sid)) ?? officeStatus(sid);
 }
 
+// An office keeps the lead instructions it opened with: `ant apply` makes a new version, but a session's system prompt
+// never changes. So each order checks the version this office last heard, and when the lead changed since, the order
+// carries the whole current text as a system note (the API takes one, right after the order). Workers are not covered:
+// a note reaches the lead only.
+const leadKey = (sid: string) => `${sid}:lead_version`;
+
+async function leadUpdate(sid: string): Promise<{ version: number; note: string | null }> {
+  const db = await getDb();
+  const row = await db.select().from(settings).where(eq(settings.key, leadKey(sid)));
+  const have = row[0] ? Number(row[0].value) : (await anthropic().beta.sessions.retrieve(sid)).agent.version;
+  const lead = await anthropic().beta.agents.retrieve(officeIds().agent);
+  if (have >= lead.version) return { version: have, note: null };
+  return {
+    version: lead.version,
+    note: `Your instructions were updated (version ${have} to ${lead.version}) after this office opened. The full current instructions follow. Where they differ from the ones you started with, follow these; the brand card, the files, memory and past orders still stand. Act on them from this order on; no need to report the update to the boss.\n\n${lead.system}`,
+  };
+}
+
 export async function say(sid: string, text: string): Promise<void> {
+  // A failed lookup never holds the order back; the next order tries again.
+  const lead = await leadUpdate(sid).catch(() => null);
   await anthropic().beta.sessions.events.send(sid, {
-    events: [{ type: "user.message", content: [{ type: "text", text }] }],
+    events: [
+      { type: "user.message", content: [{ type: "text", text }] },
+      ...(lead?.note ? [{ type: "system.message" as const, content: [{ type: "text" as const, text: lead.note }] }] : []),
+    ],
   });
+  if (lead) {
+    const db = await getDb();
+    const value = String(lead.version);
+    await db.insert(settings).values({ key: leadKey(sid), value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+  }
 }
 
 export function weekLabel(d = new Date()): string {
