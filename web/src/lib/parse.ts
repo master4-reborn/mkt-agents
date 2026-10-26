@@ -1,11 +1,12 @@
 import matter from "gray-matter";
 
-export type Kind = "brand" | "research" | "draft" | "report" | "reply" | "other";
+export type Kind = "brand" | "research" | "plan" | "draft" | "report" | "reply" | "other";
 
 export function kindOf(name: string): Kind {
   if (name === "BRAND.md") return "brand";
   if (/^reply-/.test(name)) return "reply";
   if (/^\d{4}-W\d{2}\.md$/.test(name)) return "report";
+  if (/^\d{4}-W\d{2}-plan\.md$/.test(name)) return "plan";
   if (/^\d{4}-W\d{2}-/.test(name)) return "research";
   if (/^\d{4}-\d{2}-\d{2}-/.test(name)) return "draft";
   return "other";
@@ -265,6 +266,28 @@ export function topicsList(body: string): Topic[] {
     .filter((t): t is Topic => !!t);
 }
 
+// The lead's plan for a week (plans/<week>-plan.md): goal, mix and test in the front matter, then the topics it picked
+// ("<topic> · <slot> · <why>"), the evidence, and in review weeks what to keep and drop.
+export type Pick = { topic: string; slot: string; why: string };
+export type Plan = { goal: string; mix: string[]; test: string; picks: Pick[]; why: string[]; review: string[] };
+
+export function planOf(name: string, content: string): Plan {
+  const { data, body } = parseFile(name, content);
+  // "(điền sau …)": a placeholder until topics are picked, not a topic.
+  const picks = bullets(section(body, /chọn chủ đề/i)).filter((l) => !/^\(.*\)$/.test(l)).map((l) => {
+    const [topic, slot = "", ...why] = md(l).split(/\s+·\s+/);
+    return { topic, slot, why: why.join(" · ") };
+  });
+  return {
+    goal: md(str(data.goal) ?? ""),
+    mix: (str(data.mix) ?? "").split(/[,;]/).map((x) => x.trim()).filter(Boolean),
+    test: md(str(data.test) ?? ""),
+    picks,
+    why: bullets(section(body, /vì sao/i)),
+    review: bullets(section(body, /giữ/i)),
+  };
+}
+
 export type Competitor = { name: string; fields: { label: string; value: string }[] };
 
 // competitors.md: the first table whose first column is the competitor.
@@ -387,6 +410,7 @@ export function friendly(text: string, files: FileRef[]): string {
     if (f?.kind === "draft") return `[“${f.title}”](/drafts/${encodeURIComponent(name)})`;
     if (f?.kind === "report") return `[báo cáo tuần ${weekNo(f.week)}](/reports/${encodeURIComponent(name)})`;
     if (f?.kind === "reply") return f.post ? `[câu trả lời cho khách](/drafts/${encodeURIComponent(f.post)}#tra-loi)` : "câu trả lời cho khách";
+    if (/^\d{4}-W\d{2}-plan\.md$/.test(name)) return `[kế hoạch tuần ${weekNo(name.slice(0, 8))}](/#ke-hoach)`;
     if (/^\d{4}-W\d{2}-/.test(name)) return `[nghiên cứu tuần ${weekNo(name.slice(0, 8))}](/research)`;
     if (f) return `[${f.title}](/drafts/${encodeURIComponent(name)})`;
     return whole.replace(/`/g, "");

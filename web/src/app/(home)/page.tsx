@@ -2,13 +2,14 @@ import Link from "next/link";
 import { requireBrand } from "@/lib/brands";
 import { knownStatus, weekLabel } from "@/lib/office";
 import { currentFiles, conversation, handoffs, lastStopReason, teamState } from "@/lib/sync";
-import { weekNo, parseReport, parseFile, replyParts, fileRef } from "@/lib/parse";
+import { weekNo, parseReport, parseFile, replyParts, fileRef, planOf, friendly, type FileRef, type Plan } from "@/lib/parse";
 import { userTasks, weekSteps, lastRun, hhmm, elapsedMinutes, type Task, type Step } from "@/lib/home";
 import { StatusHeader } from "@/components/StatusHeader";
 import { CatAvatar, EMPLOYEE_NAME } from "@/components/CatAvatar";
 import { PostRow } from "@/components/PostRow";
 import { SubmitButton } from "@/components/SubmitButton";
 import { DesktopOnly } from "@/components/DesktopOnly";
+import { Markdown } from "@/components/Markdown";
 import { IconCheck, IconChevron, IconPlay } from "@/components/Icons";
 import OfficeScene from "@/components/OfficeScene";
 import { IslandWindow } from "@/components/IslandWindow";
@@ -24,8 +25,8 @@ export default async function Home() {
   const me = await requireBrand();
   const sid = me.id;
   const week = weekLabel();
-  const [status, drafts, research, convo, stopReason, team, brand, reports, replyFiles, moves, saved] = await Promise.all([
-    knownStatus(sid), currentFiles(sid, "draft"), currentFiles(sid, "research"), conversation(sid, 40), lastStopReason(sid), teamState(sid), currentFiles(sid, "brand"), currentFiles(sid, "report"), currentFiles(sid, "reply"), handoffs(sid), savedFileIds(sid, "notion"),
+  const [status, drafts, research, convo, stopReason, team, brand, reports, replyFiles, moves, saved, plans] = await Promise.all([
+    knownStatus(sid), currentFiles(sid, "draft"), currentFiles(sid, "research"), conversation(sid, 40), lastStopReason(sid), teamState(sid), currentFiles(sid, "brand"), currentFiles(sid, "report"), currentFiles(sid, "reply"), handoffs(sid), savedFileIds(sid, "notion"), currentFiles(sid, "plan"),
   ]);
   const files = [...drafts, ...research, ...reports, ...replyFiles].map(fileRef);
   const replies = replyFiles.map((r) => { const p = parseFile(r.name, r.content); return { post: String(p.data.post ?? ""), status: r.status, reply: replyParts(p.body).reply }; });
@@ -39,9 +40,11 @@ export default async function Home() {
     ...userTasks(drafts, lastReport, files, reports, replies),
   ];
   const working = new Set(team.filter((t) => t.state === "working").map((t) => t.agent));
-  const steps = weekSteps(week, drafts, research, working, brandNotion(me).save ? saved : null);
   const run = lastRun(convo);
   const running = status.status === "running";
+  const steps = weekSteps(week, drafts, research, plans, working, running && !!run && !run.finishedAt, brandNotion(me).save ? saved : null);
+  const planFile = plans.find((p) => p.week === week);
+  const plan = planFile ? planOf(planFile.name, planFile.content) : null;
   const brandReady = brand[0]?.status === "ready";
   const n = weekNo(week);
   const minutes = elapsedMinutes(run, running);
@@ -78,7 +81,8 @@ export default async function Home() {
               <h2 className="text-[15px] font-bold">Tuần {n}</h2>
               {run && <div className="text-xs text-muted">chạy lúc {hhmm(run.startedAt)}{run.finishedAt ? ` · ${Math.max(1, Math.round((run.finishedAt.getTime() - run.startedAt.getTime()) / 60000))} phút` : running ? " · đang chạy" : ""}</div>}
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            {plan && <PlanCard plan={plan} files={files} />}
+            <div className={`grid gap-1.5 ${steps.length > 5 ? "grid-cols-3" : "grid-cols-5"}`}>
               {steps.map((s) => <StepTile key={s.label} step={s} />)}
             </div>
           </section>
@@ -137,7 +141,7 @@ function Hero({ waiting, running, brandReady, finishedAt, drafts, steps, minutes
     );
   if (running) {
     const current = steps.find((s) => s.state === "working");
-    const title = current?.label.startsWith("Nghiên cứu") ? "Đội đang nghiên cứu" : current?.label.startsWith("Viết") ? "Đội đang viết bài" : current?.label.startsWith("QA") ? "QA đang soát bài" : "Đội đang làm việc";
+    const title = current?.label === "Kế hoạch" ? "Trưởng nhóm đang lên kế hoạch" : current?.label.startsWith("Nghiên cứu") ? "Đội đang nghiên cứu" : current?.label.startsWith("Viết") ? "Đội đang viết bài" : current?.label.startsWith("QA") ? "QA đang soát bài" : "Đội đang làm việc";
     const done = steps.filter((s) => s.state === "done").length + (current ? 0.5 : 0);
     return (
       <section aria-live="polite" className="flex flex-col gap-3 rounded-[20px] bg-accent-soft p-5">
@@ -231,6 +235,47 @@ function TaskRow({ task }: { task: Task }) {
       </div>
       <IconChevron className="text-faint" />
     </Link>
+  );
+}
+
+// The lead's plan for this week: the goal, the mix and the test from its front matter, the topics it picked, and behind
+// a tap the evidence and, in review weeks, what to keep and drop. Changes go through the chat.
+function PlanCard({ plan, files }: { plan: Plan; files: FileRef[] }) {
+  const list = (lines: string[]) => <Markdown className="text-[13px]">{lines.map((l) => `- ${friendly(l, files)}`).join("\n")}</Markdown>;
+  return (
+    <div id="ke-hoach" className="flex scroll-mt-4 flex-col gap-2.5 rounded-2xl border border-line bg-card p-4">
+      <div className="flex flex-col gap-1">
+        <div className="eyebrow">Mục tiêu tuần</div>
+        <div className="text-[15px] font-bold leading-snug">{plan.goal || "Trưởng nhóm chưa ghi mục tiêu"}</div>
+      </div>
+      {plan.mix.length > 0 && <div className="flex flex-wrap gap-1.5">{plan.mix.map((m) => <span key={m} className="chip chip-accent">{m}</span>)}</div>}
+      {plan.test && <div className="text-[13px] leading-snug text-muted"><span className="font-semibold text-ink">Thử tuần này: </span>{plan.test}</div>}
+      {plan.picks.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-line-soft pt-2.5">
+          <div className="text-xs font-semibold text-muted">Chủ đề đã chọn</div>
+          {plan.picks.map((p, i) => (
+            <div key={i} className="text-[13px] leading-snug">
+              <span className="font-semibold">{p.topic}</span>
+              {p.slot && <span className="text-accent-deep"> · {p.slot}</span>}
+              {p.why && <span className="text-muted"> · {p.why}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {plan.review.length > 0 && (
+        <details className="border-t border-line-soft pt-2.5">
+          <summary className="cursor-pointer text-[13px] font-semibold text-accent-deep">Giữ và bỏ sau 4 tuần</summary>
+          {list(plan.review)}
+        </details>
+      )}
+      {plan.why.length > 0 && (
+        <details className="border-t border-line-soft pt-2.5">
+          <summary className="cursor-pointer text-[13px] font-semibold text-accent-deep">Vì sao chọn vậy</summary>
+          {list(plan.why)}
+        </details>
+      )}
+      <div className="text-xs text-muted">Muốn đổi mục tiêu hay cơ cấu bài, nhắn <Link href="/chat" className="font-semibold text-accent-deep">trưởng nhóm</Link>.</div>
+    </div>
   );
 }
 

@@ -52,7 +52,7 @@ export function vaultId(): string | null {
 
 // The Monday order, in Vietnamese so the lead answers in Vietnamese. `auto` marks a run the schedule started.
 export function weekOrder(week: string, note: string, auto = false): string {
-  return `Chạy tuần ${week}.\n\n${auto ? "(Lệnh tự động theo lịch sáng thứ Hai.)\n\n" : ""}Làm theo chu trình tuần: nghiên cứu, rồi viết 3 đến 5 bài, rồi QA, rồi chép các file của tuần vào /mnt/session/outputs/${week}/ và báo cáo.\n\nGhi chú của sếp cho tuần này: ${note || "không có"}`;
+  return `Chạy tuần ${week}.\n\n${auto ? "(Lệnh tự động theo lịch sáng thứ Hai.)\n\n" : ""}Làm theo chu trình tuần: lên kế hoạch tuần, rồi nghiên cứu, rồi chọn chủ đề theo kế hoạch, rồi viết 3 đến 5 bài, rồi QA, rồi chép các file của tuần vào /mnt/session/outputs/${week}/ và báo cáo.\n\nGhi chú của sếp cho tuần này: ${note || "không có"}`;
 }
 
 const SEP_INSTRUCTIONS = "Bộ nhớ chung của sếp, dùng cho mọi thương hiệu: quyet-dinh.md, threads.md, tu-cam.md. Đọc trước mỗi chu trình; chỉ trưởng nhóm ghi, theo đúng mục Bộ nhớ trong hướng dẫn.";

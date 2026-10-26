@@ -47,15 +47,18 @@ export function userTasks(drafts: Draft[], lastReport: Msg | null, files: FileRe
 
 export type Step = { label: string; state: "done" | "working" | "todo" | "partial"; detail?: string };
 
-// The four steps of a week, read from the files the team delivered and who is working now.
+// The steps of a week, read from the files the team delivered and who is working now. `weekRun`: a week order is under
+// way, so a lead busy before research has started is planning.
 // `saved`: ids of the files already copied to Notion, or null when this brand has no Notion page to save under.
-export function weekSteps(week: string, drafts: (Draft & { id?: string })[], research: { week: string | null }[], working: Set<string>, saved: Set<string> | null = null): Step[] {
+export function weekSteps(week: string, drafts: (Draft & { id?: string })[], research: { week: string | null }[], plans: { week: string | null }[], working: Set<string>, weekRun: boolean, saved: Set<string> | null = null): Step[] {
   const mine = drafts.filter((d) => d.week === week);
   const hasResearch = research.some((r) => r.week === week);
+  const planned = plans.some((p) => p.week === week);
   const checked = mine.filter((d) => ["ready", "approved", "posted", "needs-fix", "rejected"].includes(d.status ?? ""));
   const passed = mine.filter((d) => ["ready", "approved", "posted"].includes(d.status ?? ""));
   const decided = mine.filter((d) => ["approved", "posted", "rejected"].includes(d.status ?? ""));
   return [
+    { label: "Kế hoạch", state: planned ? "done" : weekRun && !hasResearch && !working.has("research") && mine.length === 0 ? "working" : "todo" },
     { label: "Nghiên cứu", state: working.has("research") ? "working" : hasResearch ? "done" : "todo" },
     { label: mine.length ? `Viết ${mine.length} bài` : "Viết bài", state: working.has("writer") ? "working" : mine.length ? "done" : "todo" },
     { label: "QA soát", state: working.has("qa") ? "working" : checked.length === 0 ? "todo" : passed.length === mine.length ? "done" : "partial", detail: checked.length ? `${passed.length}/${mine.length}` : undefined },

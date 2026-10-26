@@ -8,7 +8,7 @@ Spec (final v1): https://claude.ai/artifact/QPnbQhz1UXPs6nY5vqMHYG
 
 | Path | What |
 | --- | --- |
-| `agents/lead.md` | The coordinator (điều phối). Runs the weekly cycle, delegates, reports. Roster: the four employees below. |
+| `agents/lead.md` | The coordinator (điều phối). Plans each week (goal, post mix, one test, plans/<week>-plan.md), picks research's topics to fit it, runs the weekly cycle, delegates, reports. Roster: the four employees below. |
 | `agents/research.md` | Research employee. The only one with web search and fetch. Writes `research/`. |
 | `agents/writer.md` | Writer. Drafts into `content/drafts/`. No web, no bash. |
 | `agents/qa.md` | QA-QC. Sets `status: ready` or `needs-fix` plus a checklist. No web, no bash. |

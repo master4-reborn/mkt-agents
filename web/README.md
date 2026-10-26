@@ -67,7 +67,7 @@ The production build has been checked against a real Postgres 17 (`next build` t
 
 | Page | What |
 | --- | --- |
-| `/` | What needs you today (posts to publish, holes to fill, numbers to send, replies to paste), the week's steps, the team, Run week |
+| `/` | What needs you today (posts to publish, holes to fill, numbers to send, replies to paste), the lead's plan for the week (goal, post mix, one test, the topics it picked, keep/drop every fourth week; from `<week>-plan.md`), the week's steps starting with Kế hoạch, the team, Run week |
 | `/drafts` | Drafts by status; a draft page shows the post, Approve / Reject with a note, and the sources and QA checklist |
 | `/research` | Topics, pains and competitors per week; ask for one more post from a topic |
 | `/reports` | Enter each published post's numbers; the metrics report per week |
