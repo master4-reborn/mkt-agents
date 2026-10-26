@@ -37,9 +37,9 @@
     "./agents/scout.md": {
       "kind": "agent",
       "id": "agent_019MrCHKYBr9mnDQ5wvaf8pX",
-      "version": "1",
-      "hash": "2c3ef48d6ffdc541698c37e630c2f3bb",
-      "remote_hash": "ffbc57497ae1d4f9cfce5e2faea4ee9e"
+      "version": "2",
+      "hash": "8e1cde8e25777f5ea5543f2fe5c34d5c",
+      "remote_hash": "4a4da56cee8ab8968515d9c79ef50212"
     },
     "./agents/writer.md": {
       "kind": "agent",

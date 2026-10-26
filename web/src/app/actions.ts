@@ -14,7 +14,7 @@ import { gmailCheckLabel, gmailLabels } from "@/lib/gmail";
 import { mailNews, refreshMail } from "@/lib/mailbox";
 import { getDatabase, getDataSource, getPage, notionId, notionMe } from "@/lib/notion";
 import { ensureDatabases, pushMirrors } from "@/lib/mirror";
-import { approveVersion, rejectVersion, restoreVersion, setScoutSchedule, setSkillActive, startScout, versionWithSkill, SHARED, type Schedule } from "@/lib/skills";
+import { approveVersion, mergeVersion, rejectVersion, restoreVersion, setScoutSchedule, setSkillActive, startScout, versionWithSkill, SHARED, type Schedule } from "@/lib/skills";
 
 // Orders go to the lead in Vietnamese so it answers in Vietnamese (it mirrors the boss's language).
 
@@ -82,6 +82,8 @@ export async function newBrand(formData: FormData) {
   const budget = Math.min(200, Math.max(1, Number(formData.get("budget")) || 30));
   if (!sentence) return;
   const b = await createBrand(sentence, budget);
+  const scout = String(formData.get("scout") ?? "off");
+  if (["2w", "month"].includes(scout)) await setScoutSchedule(b.id, scout as Schedule);
   await setCurrentBrand(b.id);
   await Promise.all([sync(b.id).catch(() => {}), officeStatus(b.id).catch(() => {})]);
   revalidatePath("/", "layout");
@@ -450,7 +452,11 @@ export async function approveSkill(formData: FormData) {
   const row = await ownVersion(formData);
   if (!row) redirect("/brand");
   const rules = formData.get("rules");
-  await approveVersion(row.v.id, { rules: rules == null ? undefined : String(rules), receivers: formData.getAll("receiver").map(String) });
+  const opts = { rules: rules == null ? undefined : String(rules), receivers: formData.getAll("receiver").map(String) };
+  // "Làm bản N của X": the proposal joins skill X instead of becoming a new skill.
+  const into = Number(formData.get("into"));
+  if (into) await mergeVersion(row.v.id, into, { ...opts, keep: formData.getAll("keep").map(Number) });
+  else await approveVersion(row.v.id, opts);
   revalidatePath("/", "layout");
   redirect(`/brand/skill/${row.v.id}`);
 }

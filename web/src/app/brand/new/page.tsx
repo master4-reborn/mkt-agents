@@ -4,6 +4,7 @@ import { allBrands } from "@/lib/brands";
 import { SubmitButton } from "@/components/SubmitButton";
 import { IconBack } from "@/components/Icons";
 import { newBrand } from "../../actions";
+import { ScoutPick } from "./ScoutPick";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function NewBrand() {
             </select>
             <span className="text-xs text-[#6b3d53]">Mức trần, không phải tiền trả trước. Viết thẻ tốn khoảng 1 USD, mỗi tuần 2 đến 3 USD. Hết trần thì đội dừng.</span>
           </label>
+          <ScoutPick />
           <SubmitButton className="btn btn-accent" pendingLabel="Đang mở văn phòng…">Mở văn phòng cho thương hiệu này</SubmitButton>
         </form>
       </section>

@@ -25,7 +25,7 @@ const MONTH_CEILING_CENTS = 2000;
 export type Rule = { text: string; sources: number[] };
 export type Source = { site: string; url: string | null; date: string; kind: string };
 export type SkillDoc = { slug: string; title: string; when: string; steps: string[]; rules: Rule[]; qa: string[]; good: string[]; bad: string[]; sources: Source[] };
-export type Review = { slug: string; title: string; kind: "new" | "update"; base: number; receivers: string[]; type: string; why: string; changes: string[]; warnings: string[] };
+export type Review = { slug: string; title: string; kind: "new" | "update"; base: number; receivers: string[]; type: string; similar: string; why: string; changes: string[]; warnings: string[] };
 
 // "- a" and "1. a" lines, without the marker.
 function items(text: string): string[] {
@@ -66,21 +66,101 @@ export function reviewDoc(content: string): Review {
     base: Number(data.base) || 0,
     receivers: list(data.receivers),
     type: String(data.type ?? ""),
+    similar: String(data.similar ?? "").trim().toLowerCase(),
     why: part(body, /vì sao/i),
     changes: items(part(body, /thay đổi/i)),
     warnings: items(part(body, /cảnh báo/i)).filter((w) => !/^không có\.?$/i.test(w)),
   };
 }
 
-// The boss's edit: one rule per line, numbered again; the rest of the file stays as the scout wrote it.
-export function withRules(content: string, rules: string): string {
+// A section's list items as written, source tags included.
+const rawItems = (content: string, re: RegExp) => items(part(parseFile("skill.md", content).body, re));
+
+// The rules as the boss edits them: one per line, with their [nguồn: …] tags.
+export const rulesText = (content: string) => rawItems(content, /quy tắc/i).join("\n");
+
+// One "## …" list replaced by these lines, numbered again. A plain line under it (the brand-card rule) stays; the rest
+// of the file stays as the scout wrote it.
+function withList(content: string, re: RegExp, list: string[]): string {
   const lines = content.split("\n");
-  const start = lines.findIndex((l) => /^##\s+quy tắc/i.test(l));
+  const start = lines.findIndex((l) => /^##\s+/.test(l) && re.test(l));
   if (start === -1) return content;
   let end = lines.findIndex((l, i) => i > start && /^##\s+/.test(l));
   if (end === -1) end = lines.length;
-  const numbered = rules.split("\n").map((l) => l.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "").trim()).filter(Boolean).map((l, i) => `${i + 1}. ${l}`);
-  return [...lines.slice(0, start + 1), "", ...numbered, "", ...lines.slice(end)].join("\n");
+  const marker = /^\s*(?:[-*]|\d+[.)])\s+/;
+  const rest = lines.slice(start + 1, end).filter((l) => l.trim() && !marker.test(l));
+  const numbered = list.map((l) => l.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "").trim()).filter(Boolean).map((l, i) => `${i + 1}. ${l}`);
+  return [...lines.slice(0, start + 1), "", ...numbered, "", ...(rest.length ? [...rest, ""] : []), ...lines.slice(end)].join("\n");
+}
+
+// The boss's edit: one rule per line.
+export const withRules = (content: string, rules: string) => withList(content, /quy tắc/i, rules.split("\n"));
+
+/* ---------- comparing two skills ---------- */
+
+// Words every Vietnamese rule uses; without them two rules on different topics look alike.
+const STOP = new Set("và là của có cho bằng ở thì mà hay hoặc một các những được không này đó với trong ra vào lên khi nếu để từ như đã sẽ đang cả mọi phải".split(" "));
+const words = (s: string) => new Set(s.toLowerCase().replace(/["“”'‘’()…,.;:!?%]/g, " ").split(/\s+/).filter((w) => w && !STOP.has(w)));
+function alike(a: string, b: string): number {
+  const [x, y] = [words(a), words(b)];
+  let n = 0;
+  for (const w of x) if (y.has(w)) n++;
+  return x.size + y.size ? (2 * n) / (x.size + y.size) : 0;
+}
+const BRAND_RULE = /^thẻ thương hiệu thắng/i;
+
+// Proposal rules against old rules, one to one, best pairs first. Measured on the scout's real Threads skill: rules that
+// say the same thing score 0.43 to 0.89 shared words, different rules 0.36 or less.
+export function compareRules(next: Rule[], old: Rule[]) {
+  const pairs = next.flatMap((r, i) => old.map((o, j) => [alike(r.text, o.text), i, j] as const)).filter(([s, i, j]) => s >= 0.4 && !BRAND_RULE.test(next[i].text) && !BRAND_RULE.test(old[j].text)).sort((a, b) => b[0] - a[0]);
+  const [n, o] = [new Set<number>(), new Set<number>()];
+  const same: [number, number][] = [];
+  for (const [, i, j] of pairs) if (!n.has(i) && !o.has(j)) { n.add(i); o.add(j); same.push([i, j]); }
+  return {
+    added: next.map((_, i) => i).filter((i) => !n.has(i) && !BRAND_RULE.test(next[i].text)),
+    same: same.sort((a, b) => a[0] - b[0]),
+    dropped: old.map((_, j) => j).filter((j) => !o.has(j) && !BRAND_RULE.test(old[j].text)),
+  };
+}
+
+// A proposal the scout filed as a new skill while one in use covers the same ground: the skill it names under `similar`,
+// or the one sharing at least 2 rules and 40% of the proposal's rules. Rules every skill repeats (no invented numbers) stay
+// under that bar. Null for updates and for skills approved before.
+export function similarTo(v: VersionRow, s: SkillRow, inScope: ScopeSkill[]): ScopeSkill | null {
+  if (v.status !== "proposed" || s.current != null) return null;
+  const others = inScope.filter((x) => x.id !== s.id && x.status === "active" && x.current != null);
+  const named = others.find((x) => x.slug === reviewDoc(v.review).similar);
+  if (named) return named;
+  const rules = skillDoc(v.content).rules.filter((r) => !BRAND_RULE.test(r.text));
+  let best: ScopeSkill | null = null;
+  let most = 0;
+  for (const x of others) {
+    const cur = x.versions.find((y) => y.version === x.current);
+    const n = cur ? compareRules(rules, skillDoc(cur.content).rules).same.length : 0;
+    if (n > most) [best, most] = [x, n];
+  }
+  return most >= 2 && most >= 0.4 * rules.length ? best : null;
+}
+
+// The next version of skill `into` built from a proposal: the proposal's rules plus the old rules the boss kept, their
+// sources added to the list and renumbered; the name stays the old skill's.
+export function mergedContent(next: string, old: string, into: SkillRow, keep: number[]): string {
+  const [nd, od] = [skillDoc(next), skillDoc(old)];
+  const sources = rawItems(next, /nguồn/i);
+  const oldSources = rawItems(old, /nguồn/i);
+  const oldRules = rawItems(old, /quy tắc/i);
+  const link = (l: string) => l.split(/\s+·\s+/)[1] ?? l;
+  const kept = compareRules(nd.rules, od.rules).dropped.filter((j) => keep.includes(j)).map((j) => {
+    const nums = od.rules[j].sources.flatMap((k) => {
+      const line = oldSources[k - 1];
+      if (!line) return [];
+      const at = sources.findIndex((l) => link(l) === link(line));
+      return [at === -1 ? sources.push(line) : at + 1];
+    });
+    return oldRules[j].replace(/\s*\[nguồn:[^\]]*\]/i, "") + (nums.length ? ` [nguồn: ${nums.join(", ")}]` : "");
+  });
+  const content = withList(withList(next, /quy tắc/i, [...rawItems(next, /quy tắc/i), ...kept]), /nguồn/i, sources);
+  return content.replace(/^skill:.*$/m, `skill: ${into.slug}`).replace(/^title:.*$/m, `title: ${into.title}`);
 }
 
 const slugify = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "ky-nang";
@@ -90,6 +170,7 @@ const slugify = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""
 export type SkillRow = typeof skills.$inferSelect;
 export type VersionRow = typeof skillVersions.$inferSelect;
 export type RunRow = typeof scoutRuns.$inferSelect;
+export type ScopeSkill = Awaited<ReturnType<typeof scopeSkills>>[number];
 
 export async function scopeSkills(scope: Scope) {
   const db = await getDb();
@@ -127,6 +208,54 @@ export async function scopeLabel(scope: Scope): Promise<string> {
   return (card && brandName(card.content)) || (b ? shortSentence(b.sentence) : "Thương hiệu");
 }
 
+/* ---------- what the team wrote with a skill ---------- */
+
+// Drafts and comment replies carry `skills: hook-threads v2, tra-loi-gia v1` in their front matter (agents/lead.md).
+export function skillTags(data: Record<string, unknown>): { slug: string; version: number | null }[] {
+  const raw = Array.isArray(data.skills) ? data.skills.join(",") : String(data.skills ?? "");
+  return raw.split(",").flatMap((t) => {
+    const m = t.trim().match(/^([a-z0-9-]+)(?:\s+(?:v|bản\s*)(\d+))?/i);
+    return m ? [{ slug: m[1].toLowerCase(), version: m[2] ? Number(m[2]) : null }] : [];
+  });
+}
+
+export type Use = { name: string; title: string; kind: string; status: string | null; version: number | null; week: string | null };
+
+// One brand's tagged drafts and replies, by skill slug, newest first.
+export async function skillUses(sid: string): Promise<Map<string, Use[]>> {
+  const out = new Map<string, Use[]>();
+  const files = [...(await currentFiles(sid, "draft")), ...(await currentFiles(sid, "reply"))].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  for (const f of files)
+    for (const t of skillTags(parseFile(f.name, f.content).data))
+      out.set(t.slug, [...(out.get(t.slug) ?? []), { name: f.name, title: f.title, kind: f.kind, status: f.status, version: t.version, week: f.week }]);
+  return out;
+}
+
+// The skills a set of drafts was written with, for the week's plan card: a brand skill before a shared one of the same slug.
+export async function skillsOf(sid: string, drafts: { name: string; content: string }[]) {
+  const tags = drafts.flatMap((f) => skillTags(parseFile(f.name, f.content).data));
+  if (!tags.length) return [];
+  const known = [...(await scopeSkills(sid)), ...(await scopeSkills(SHARED))];
+  const out = new Map<string, { title: string; version: number | null; id: number | null }>();
+  for (const t of tags) {
+    const s = known.find((k) => k.slug === t.slug);
+    const v = s?.versions.find((x) => x.version === (t.version ?? s.current));
+    const key = `${t.slug} ${t.version}`;
+    if (!out.has(key)) out.set(key, { title: s?.title ?? t.slug, version: t.version, id: v?.id ?? null });
+  }
+  return [...out.values()];
+}
+
+export function countUses(uses: Use[]) {
+  return {
+    posts: uses.filter((u) => u.kind === "draft").length,
+    replies: uses.filter((u) => u.kind !== "draft").length,
+    approved: uses.filter((u) => u.status === "approved" || u.status === "posted").length,
+    returned: uses.filter((u) => u.status === "rejected").length,
+    waiting: uses.filter((u) => u.status === "ready").length,
+  };
+}
+
 /* ---------- schedule and spend ---------- */
 
 export type Schedule = "off" | "2w" | "month";
@@ -157,6 +286,7 @@ export async function monthSpendCents(now = new Date()): Promise<number> {
 export async function notDue(scope: Scope, now = new Date()): Promise<string | null> {
   const schedule = await getSchedule(scope);
   if (schedule === "off") return "off";
+  if (scope !== SHARED && (await currentFiles(scope, "brand"))[0]?.status !== "ready") return "no brand card";
   const last = await lastRun(scope);
   if (last?.status === "running") return "running";
   if ((await pendingProposals([scope])).length) return "waiting for review";
@@ -288,13 +418,32 @@ export async function approveVersion(id: number, opts: { rules?: string; receive
   const row = await versionWithSkill(id);
   if (!row || row.v.status !== "proposed") return row?.s.scope ?? null;
   const db = await getDb();
-  const edited = opts.rules != null && opts.rules.trim() !== skillDoc(row.v.content).rules.map((r) => r.text).join("\n").trim();
+  const edited = opts.rules != null && opts.rules.trim() !== rulesText(row.v.content).trim();
   const content = edited ? withRules(row.v.content, opts.rules!) : row.v.content;
   const receivers = opts.receivers?.filter((r) => (EMPLOYEES as readonly string[]).includes(r));
   await db.update(skills).set({ title: skillDoc(content).title || row.s.title, ...(receivers?.length ? { receivers: receivers.join(",") } : {}) }).where(eq(skills.id, row.s.id));
   await makeCurrent(row.s, id, { content, edited: edited ? "1" : null });
   await deliverSkills(row.s.scope);
   return row.s.scope;
+}
+
+// "Làm bản N của X": a proposal filed as a new skill becomes the next version of X, keeping X's name and receivers unless
+// the boss changed them. The empty skill the proposal came in under is removed.
+export async function mergeVersion(id: number, intoId: number, opts: { keep?: number[]; rules?: string; receivers?: string[] } = {}): Promise<Scope | null> {
+  const row = await versionWithSkill(id);
+  if (!row || row.v.status !== "proposed") return row?.s.scope ?? null;
+  const db = await getDb();
+  const [into] = await db.select().from(skills).where(and(eq(skills.id, intoId), eq(skills.scope, row.s.scope)));
+  const [cur] = into?.current != null ? await db.select().from(skillVersions).where(and(eq(skillVersions.skill, into.id), eq(skillVersions.version, into.current))) : [];
+  if (!into || !cur) return row.s.scope;
+  const merged = mergedContent(row.v.content, cur.content, into, opts.keep ?? []);
+  const edited = opts.rules != null && opts.rules.trim() !== rulesText(merged).trim();
+  const receivers = opts.receivers?.filter((r) => (EMPLOYEES as readonly string[]).includes(r));
+  if (receivers?.length) await db.update(skills).set({ receivers: receivers.join(",") }).where(eq(skills.id, into.id));
+  await makeCurrent(into, id, { skill: into.id, base: into.current, content: edited ? withRules(merged, opts.rules!) : merged, edited: edited ? "1" : null });
+  if ((await db.select({ id: skillVersions.id }).from(skillVersions).where(eq(skillVersions.skill, row.s.id))).length === 0) await db.delete(skills).where(eq(skills.id, row.s.id));
+  await deliverSkills(into.scope);
+  return into.scope;
 }
 
 export async function rejectVersion(id: number, reason: string): Promise<Scope | null> {

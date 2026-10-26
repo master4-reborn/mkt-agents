@@ -93,7 +93,7 @@ export default async function Brand() {
       ) : (
         <Reopen me={me} status={status} />
       )}
-      {me.memoryStoreId && <Skills scope={me.id} />}
+      {me.memoryStoreId && <Skills scope={me.id} brand={me.id} />}
       {sep && (
         <Memory
           id="so-thich"
@@ -106,7 +106,7 @@ export default async function Brand() {
           placeholder="Thêm sở thích cho mọi thương hiệu, một câu"
         />
       )}
-      {sep && <Skills scope={SHARED} />}
+      {sep && <Skills scope={SHARED} brand={me.id} />}
       {me.memoryStoreId && <Reopen me={me} status={status} />}
 
       <AddBrand />

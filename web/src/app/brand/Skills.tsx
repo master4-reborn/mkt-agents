@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { SubmitButton } from "@/components/SubmitButton";
 import { IconChevron, IconSearch } from "@/components/Icons";
-import { EMPLOYEE_LABEL, SCHEDULE_LABEL, getSchedule, lastRun, monthSpendCents, pendingProposals, reviewDoc, scopeSkills, SHARED, type Schedule } from "@/lib/skills";
+import { EMPLOYEE_LABEL, SCHEDULE_LABEL, getSchedule, lastRun, monthSpendCents, pendingProposals, reviewDoc, scopeSkills, similarTo, skillUses, countUses, SHARED, type Schedule } from "@/lib/skills";
 import { findSkill, setSkillSchedule } from "../actions";
 
 // One scope's skills on the Thương hiệu page: proposals waiting for the boss, the skills in use, the scout's button and its
-// schedule. "Kỹ năng chung" sits under Sở thích của sếp, "Kỹ năng riêng" under Đội đã học.
-export async function Skills({ scope }: { scope: string }) {
+// schedule. "Kỹ năng chung" sits under Sở thích của sếp, "Kỹ năng riêng" under Đội đã học. Counts of posts written with
+// each skill are for the brand on screen.
+export async function Skills({ scope, brand }: { scope: string; brand: string }) {
   const shared = scope === SHARED;
-  const [all, pending, run, schedule, spent] = await Promise.all([scopeSkills(scope), pendingProposals([scope]), lastRun(scope), getSchedule(scope), monthSpendCents()]);
+  const [all, pending, run, schedule, spent, uses] = await Promise.all([scopeSkills(scope), pendingProposals([scope]), lastRun(scope), getSchedule(scope), monthSpendCents(), skillUses(brand)]);
   const active = all.filter((s) => s.status === "active");
   const retired = all.filter((s) => s.status === "retired");
   const running = run?.status === "running";
@@ -24,11 +25,19 @@ export async function Skills({ scope }: { scope: string }) {
       <div className="overflow-hidden rounded-[18px] border border-line bg-card">
         {pending.map(({ v, s }) => {
           const rv = reviewDoc(v.review);
+          const like = similarTo(v, s, all);
           return (
             <Link key={v.id} href={`/brand/skill/${v.id}`} className="row text-ink">
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="truncate text-sm font-semibold">{rv.title || s.title}</span>
-                <span className="truncate text-xs text-muted">{s.current ? `Cập nhật bản ${s.current}` : "Kỹ năng mới"} · trinh sát đề xuất {day(v.createdAt)}</span>
+                {like ? (
+                  <span className="flex flex-wrap items-center gap-1">
+                    <span className="chip chip-warn max-w-full"><span className="truncate">Giống: {like.title}</span></span>
+                    <span className="text-xs text-muted">đề xuất {day(v.createdAt)}</span>
+                  </span>
+                ) : (
+                  <span className="truncate text-xs text-muted">{s.current ? `Cập nhật bản ${s.current}` : "Kỹ năng mới"} · trinh sát đề xuất {day(v.createdAt)}</span>
+                )}
               </span>
               <span className="chip chip-accent">Chờ duyệt</span>
               <IconChevron className="text-faint" />
@@ -55,6 +64,9 @@ export async function Skills({ scope }: { scope: string }) {
         )}
         {active.map((s) => {
           const v = s.versions.find((x) => x.version === s.current);
+          const c = countUses(uses.get(s.slug) ?? []);
+          const made = [c.posts && `${c.posts} bài`, c.replies && `${c.replies} câu trả lời`].filter(Boolean).join(", ");
+          const decided = [c.approved && `bạn duyệt ${c.approved}`, c.returned && `trả lại ${c.returned}`].filter(Boolean).join(", ");
           return (
             <Link key={s.id} href={`/brand/skill/${v?.id}`} className="row text-ink">
               <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -63,6 +75,9 @@ export async function Skills({ scope }: { scope: string }) {
                   {s.receivers.split(",").map((r) => <span key={r} className="chip chip-outline">{EMPLOYEE_LABEL[r] ?? r}</span>)}
                   <span className="text-xs text-muted">bản {s.current}{v?.decidedAt ? ` · từ ${day(v.decidedAt)}` : ""}</span>
                 </span>
+                {made ? (
+                  <span className="text-xs"><span className="font-bold">{made}</span><span className="text-muted"> đã dùng{decided ? ` · ${decided}` : ""}</span></span>
+                ) : s.receivers.split(",").includes("writer") && <span className="text-xs text-muted">Chưa có bài nào dùng</span>}
               </span>
               <span className="chip chip-ok">Đang dùng</span>
               <IconChevron className="text-faint" />

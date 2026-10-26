@@ -10,7 +10,7 @@ import { PostRow } from "@/components/PostRow";
 import { SubmitButton } from "@/components/SubmitButton";
 import { DesktopOnly } from "@/components/DesktopOnly";
 import { Markdown } from "@/components/Markdown";
-import { IconCheck, IconChevron, IconPlay } from "@/components/Icons";
+import { IconCheck, IconChevron, IconPlay, IconStar } from "@/components/Icons";
 import OfficeScene from "@/components/OfficeScene";
 import { IslandWindow } from "@/components/IslandWindow";
 import { readMail, runWeek } from "../actions";
@@ -18,7 +18,7 @@ import { connection } from "@/lib/connections";
 import { mailNews } from "@/lib/mailbox";
 import { savedFileIds } from "@/lib/mirror";
 import { brandNotion } from "@/lib/connections";
-import { pendingProposals, reviewDoc, SHARED } from "@/lib/skills";
+import { pendingProposals, reviewDoc, skillsOf, SHARED } from "@/lib/skills";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +47,7 @@ export default async function Home() {
   const steps = weekSteps(week, drafts, research, plans, working, running && !!run && !run.finishedAt, brandNotion(me).save ? saved : null);
   const planFile = plans.find((p) => p.week === week);
   const plan = planFile ? planOf(planFile.name, planFile.content) : null;
+  const weekSkills = plan ? await skillsOf(sid, drafts.filter((d) => d.week === week)) : [];
   const brandReady = brand[0]?.status === "ready";
   const n = weekNo(week);
   const minutes = elapsedMinutes(run, running);
@@ -83,7 +84,7 @@ export default async function Home() {
               <h2 className="text-[15px] font-bold">Tuần {n}</h2>
               {run && <div className="text-xs text-muted">chạy lúc {hhmm(run.startedAt)}{run.finishedAt ? ` · ${Math.max(1, Math.round((run.finishedAt.getTime() - run.startedAt.getTime()) / 60000))} phút` : running ? " · đang chạy" : ""}</div>}
             </div>
-            {plan && <PlanCard plan={plan} files={files} />}
+            {plan && <PlanCard plan={plan} files={files} skills={weekSkills} />}
             <div className={`grid gap-1.5 ${steps.length > 5 ? "grid-cols-3" : "grid-cols-5"}`}>
               {steps.map((s) => <StepTile key={s.label} step={s} />)}
             </div>
@@ -253,7 +254,7 @@ function TaskRow({ task }: { task: Task }) {
 
 // The lead's plan for this week: the goal, the mix and the test from its front matter, the topics it picked, and behind
 // a tap the evidence and, in review weeks, what to keep and drop. Changes go through the chat.
-function PlanCard({ plan, files }: { plan: Plan; files: FileRef[] }) {
+function PlanCard({ plan, files, skills }: { plan: Plan; files: FileRef[]; skills: { title: string; version: number | null; id: number | null }[] }) {
   const list = (lines: string[]) => <Markdown className="text-[13px]">{lines.map((l) => `- ${friendly(l, files)}`).join("\n")}</Markdown>;
   return (
     <div id="ke-hoach" className="flex scroll-mt-4 flex-col gap-2.5 rounded-2xl border border-line bg-card p-4">
@@ -263,6 +264,19 @@ function PlanCard({ plan, files }: { plan: Plan; files: FileRef[] }) {
       </div>
       {plan.mix.length > 0 && <div className="flex flex-wrap gap-1.5">{plan.mix.map((m) => <span key={m} className="chip chip-accent">{m}</span>)}</div>}
       {plan.test && <div className="text-[13px] leading-snug text-muted"><span className="font-semibold text-ink">Thử tuần này: </span>{plan.test}</div>}
+      {skills.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-line-soft pt-2.5">
+          <div className="text-xs font-semibold text-muted">Kỹ năng tuần này</div>
+          <div className="flex flex-wrap gap-1.5">
+            {skills.map((k) => {
+              const inner = <><IconStar size={14} className="text-accent-deep" />{k.title}{k.version ? ` · bản ${k.version}` : ""}</>;
+              return k.id
+                ? <Link key={`${k.title}${k.version}`} href={`/brand/skill/${k.id}`} className="chip chip-outline py-1 text-ink">{inner}</Link>
+                : <span key={`${k.title}${k.version}`} className="chip chip-outline py-1 text-ink">{inner}</span>;
+            })}
+          </div>
+        </div>
+      )}
       {plan.picks.length > 0 && (
         <div className="flex flex-col gap-1.5 border-t border-line-soft pt-2.5">
           <div className="text-xs font-semibold text-muted">Chủ đề đã chọn</div>
